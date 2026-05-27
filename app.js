@@ -35,6 +35,8 @@ const state = {
             rotation: 0,
             perspective: 0,
             cornerRadius: 24,
+            showStatusBar: true,
+            showCameraNotch: true,
             use3D: false,
             device3D: 'iphone',
             rotation3D: { x: 0, y: 0, z: 0 },
@@ -125,7 +127,32 @@ function getBackground() {
 
 function getScreenshotSettings() {
     const screenshot = getCurrentScreenshot();
-    return screenshot ? screenshot.screenshot : state.defaults.screenshot;
+    if (screenshot) {
+        screenshot.screenshot = normalizeScreenshotSettings(screenshot.screenshot);
+        return screenshot.screenshot;
+    }
+    state.defaults.screenshot = normalizeScreenshotSettings(state.defaults.screenshot);
+    return state.defaults.screenshot;
+}
+
+function normalizeScreenshotSettings(settings) {
+    const defaults = state.defaults?.screenshot || {};
+    const merged = {
+        ...JSON.parse(JSON.stringify(defaults)),
+        ...(settings || {})
+    };
+
+    if (!merged.rotation3D) merged.rotation3D = { x: 0, y: 0, z: 0 };
+    if (typeof merged.showStatusBar !== 'boolean') merged.showStatusBar = true;
+    if (typeof merged.showCameraNotch !== 'boolean') merged.showCameraNotch = true;
+    if (!merged.device3D) merged.device3D = 'iphone';
+    if (typeof merged.use3D !== 'boolean') merged.use3D = false;
+    if (!merged.frameColor) {
+        const presets = typeof frameColorPresets !== 'undefined' ? frameColorPresets[merged.device3D] : null;
+        merged.frameColor = presets?.[0]?.id || null;
+    }
+
+    return merged;
 }
 
 function getText() {
@@ -1553,7 +1580,7 @@ function saveState() {
             deviceType: s.deviceType,
             localizedImages: localizedImages,
             background: serializeBackground(s.background),
-            screenshot: s.screenshot,
+            screenshot: normalizeScreenshotSettings(s.screenshot),
             text: s.text,
             elements: (s.elements || []).map(el => ({
                 ...el,
@@ -1710,7 +1737,7 @@ function loadState() {
                                     deviceType: s.deviceType,
                                     localizedImages: {},
                                     background: serializeBackground(s.background || migratedBackground),
-                                    screenshot: screenshotSettings,
+            screenshot: normalizeScreenshotSettings(screenshotSettings),
                                     text: s.text || JSON.parse(JSON.stringify(migratedText)),
                                     elements: reconstructElementImages(s.elements),
                                     popouts: s.popouts || [],
@@ -1750,7 +1777,7 @@ function loadState() {
                                                     deviceType: s.deviceType,
                                                     localizedImages: localizedImages,
                                                     background: serializeBackground(s.background || migratedBackground),
-                                                    screenshot: screenshotSettings,
+                                                    screenshot: normalizeScreenshotSettings(screenshotSettings),
                                                     text: s.text || JSON.parse(JSON.stringify(migratedText)),
                                                     elements: reconstructElementImages(s.elements),
                                                     popouts: s.popouts || [],
@@ -1796,7 +1823,7 @@ function loadState() {
                                         deviceType: s.deviceType,
                                         localizedImages: localizedImages,
                                         background: serializeBackground(s.background || migratedBackground),
-                                        screenshot: screenshotSettings,
+                                        screenshot: normalizeScreenshotSettings(screenshotSettings),
                                         text: s.text || JSON.parse(JSON.stringify(migratedText)),
                                         elements: reconstructElementImages(s.elements),
                                         popouts: s.popouts || [],
@@ -1843,6 +1870,7 @@ function loadState() {
                     if (parsed.defaults) {
                         state.defaults = parsed.defaults;
                         state.defaults.background = serializeBackground(state.defaults.background);
+                        state.defaults.screenshot = normalizeScreenshotSettings(state.defaults.screenshot);
                         hydrateBackgroundImage(state.defaults.background, updateCanvas);
                         // Ensure elements array exists (may be missing from older saves)
                         if (!state.defaults.elements) state.defaults.elements = [];
@@ -1850,7 +1878,7 @@ function loadState() {
                         state.defaults.background = migratedBackground;
                         state.defaults.background = serializeBackground(state.defaults.background);
                         hydrateBackgroundImage(state.defaults.background, updateCanvas);
-                        state.defaults.screenshot = migratedScreenshot;
+                        state.defaults.screenshot = normalizeScreenshotSettings(migratedScreenshot);
                         state.defaults.text = migratedText;
                     }
                 } else {
@@ -1928,6 +1956,8 @@ function resetStateToDefaults() {
             rotation: 0,
             perspective: 0,
             cornerRadius: 24,
+            showStatusBar: true,
+            showCameraNotch: true,
             shadow: {
                 enabled: true,
                 color: '#000000',
@@ -2337,6 +2367,8 @@ function syncUIWithState() {
     const use3D = ss.use3D || false;
     const device3D = ss.device3D || 'iphone';
     const rotation3D = ss.rotation3D || { x: 0, y: 0, z: 0 };
+    const showStatusBar = ss.showStatusBar !== false;
+    const showCameraNotch = ss.showCameraNotch !== false;
     document.querySelectorAll('#device-type-selector button').forEach(btn => {
         btn.classList.toggle('active', btn.dataset.type === (use3D ? '3d' : '2d'));
     });
@@ -2351,6 +2383,8 @@ function syncUIWithState() {
     document.getElementById('rotation-3d-y-value').textContent = formatValue(rotation3D.y) + '°';
     document.getElementById('rotation-3d-z').value = rotation3D.z;
     document.getElementById('rotation-3d-z-value').textContent = formatValue(rotation3D.z) + '°';
+    document.getElementById('status-bar-toggle').classList.toggle('active', showStatusBar);
+    document.getElementById('camera-notch-toggle').classList.toggle('active', showCameraNotch);
 
     // Hide 2D-only settings in 3D mode, show 3D tip
     document.getElementById('2d-only-settings').style.display = use3D ? 'none' : 'block';
@@ -4762,6 +4796,21 @@ function setupEventListeners() {
         }
         updateCanvas(); // Keep export canvas in sync
     });
+
+    // 3D device chrome controls
+    document.getElementById('status-bar-toggle').addEventListener('click', function () {
+        this.classList.toggle('active');
+        setScreenshotSetting('showStatusBar', this.classList.contains('active'));
+        if (typeof updateScreenTexture === 'function') updateScreenTexture();
+        updateCanvas();
+    });
+
+    document.getElementById('camera-notch-toggle').addEventListener('click', function () {
+        this.classList.toggle('active');
+        setScreenshotSetting('showCameraNotch', this.classList.contains('active'));
+        if (typeof updateScreenTexture === 'function') updateScreenTexture();
+        updateCanvas();
+    });
 }
 
 // Per-screenshot mode is now always active (all settings are per-screenshot)
@@ -6041,12 +6090,43 @@ function applyPositionPreset(preset) {
 
     const p = presets[preset];
     if (!p) return;
+    const ss = getScreenshotSettings();
 
     setScreenshotSetting('scale', p.scale);
     setScreenshotSetting('x', p.x);
     setScreenshotSetting('y', p.y);
     setScreenshotSetting('rotation', p.rotation);
     setScreenshotSetting('perspective', p.perspective);
+
+    if (ss?.use3D) {
+        const rotation3DPresets = {
+            'centered': { x: 0, y: 0, z: 0 },
+            'bleed-bottom': { x: 0, y: 0, z: 0 },
+            'bleed-top': { x: 0, y: 0, z: 0 },
+            'float-center': { x: 0, y: 0, z: 0 },
+            'tilt-left': { x: 0, y: -10, z: -8 },
+            'tilt-right': { x: 0, y: 10, z: 8 },
+            'perspective': { x: 0, y: 18, z: 0 },
+            'float-bottom': { x: 0, y: 0, z: 0 }
+        };
+        const r3 = rotation3DPresets[preset] || { x: 0, y: 0, z: 0 };
+
+        if (!ss.rotation3D) ss.rotation3D = { x: 0, y: 0, z: 0 };
+        ss.rotation3D.x = r3.x;
+        ss.rotation3D.y = r3.y;
+        ss.rotation3D.z = r3.z;
+
+        document.getElementById('rotation-3d-x').value = r3.x;
+        document.getElementById('rotation-3d-x-value').textContent = formatValue(r3.x) + '°';
+        document.getElementById('rotation-3d-y').value = r3.y;
+        document.getElementById('rotation-3d-y-value').textContent = formatValue(r3.y) + '°';
+        document.getElementById('rotation-3d-z').value = r3.z;
+        document.getElementById('rotation-3d-z-value').textContent = formatValue(r3.z) + '°';
+
+        if (typeof setThreeJSRotation === 'function') {
+            setThreeJSRotation(r3.x, r3.y, r3.z);
+        }
+    }
 
     // Update UI controls
     document.getElementById('screenshot-scale').value = p.scale;

@@ -537,45 +537,6 @@
 
             <!-- Screenshot Tab -->
             <div class="tab-content" id="tab-screenshot">
-                <div class="control-group">
-                    <label class="control-label">Device Type</label>
-                    <div class="btn-group" id="device-type-selector">
-                        <button class="active" data-type="2d">2D</button>
-                        <button data-type="3d">3D</button>
-                    </div>
-                </div>
-
-                <div id="rotation-3d-options" style="display: none;">
-                    <div class="control-group">
-                        <label class="control-label">Device Model</label>
-                        <div class="btn-group" id="device-3d-selector">
-                            <button class="active" data-model="iphone">iPhone</button>
-                            <button data-model="samsung">Samsung</button>
-                        </div>
-                    </div>
-                    <div class="control-group">
-                        <label class="control-label">Rotation X (Tilt)</label>
-                        <div class="control-row">
-                            <input type="range" id="rotation-3d-x" min="-45" max="45" value="0">
-                            <span class="range-value" id="rotation-3d-x-value">0°</span>
-                        </div>
-                    </div>
-                    <div class="control-group">
-                        <label class="control-label">Rotation Y (Turn)</label>
-                        <div class="control-row">
-                            <input type="range" id="rotation-3d-y" min="-45" max="45" value="0">
-                            <span class="range-value" id="rotation-3d-y-value">0°</span>
-                        </div>
-                    </div>
-                    <div class="control-group">
-                        <label class="control-label">Rotation Z (Roll)</label>
-                        <div class="control-row">
-                            <input type="range" id="rotation-3d-z" min="-45" max="45" value="0">
-                            <span class="range-value" id="rotation-3d-z-value">0°</span>
-                        </div>
-                    </div>
-                </div>
-
                 <div id="position-presets-section">
                 <div class="control-group">
                     <div class="preset-dropdown" id="position-preset-dropdown">
@@ -642,6 +603,57 @@
                 </div><!-- end position-presets-section -->
 
                 <div class="divider"></div>
+
+                <div class="control-group">
+                    <label class="control-label">Device Type</label>
+                    <div class="btn-group" id="device-type-selector">
+                        <button class="active" data-type="2d">2D</button>
+                        <button data-type="3d">3D</button>
+                    </div>
+                </div>
+
+                <div id="rotation-3d-options" style="display: none;">
+                    <div class="control-group">
+                        <label class="control-label">Device Model</label>
+                        <div class="btn-group" id="device-3d-selector">
+                            <button class="active" data-model="iphone">iPhone</button>
+                            <button data-model="samsung">Samsung</button>
+                        </div>
+                    </div>
+                    <div class="control-group">
+                        <div class="toggle-row">
+                            <span class="toggle-label">Status Bar</span>
+                            <div class="toggle active" id="status-bar-toggle"></div>
+                        </div>
+                    </div>
+                    <div class="control-group">
+                        <div class="toggle-row">
+                            <span class="toggle-label">Camera Notch</span>
+                            <div class="toggle active" id="camera-notch-toggle"></div>
+                        </div>
+                    </div>
+                    <div class="control-group">
+                        <label class="control-label">Rotation X (Tilt)</label>
+                        <div class="control-row">
+                            <input type="range" id="rotation-3d-x" min="-45" max="45" value="0">
+                            <span class="range-value" id="rotation-3d-x-value">0°</span>
+                        </div>
+                    </div>
+                    <div class="control-group">
+                        <label class="control-label">Rotation Y (Turn)</label>
+                        <div class="control-row">
+                            <input type="range" id="rotation-3d-y" min="-45" max="45" value="0">
+                            <span class="range-value" id="rotation-3d-y-value">0°</span>
+                        </div>
+                    </div>
+                    <div class="control-group">
+                        <label class="control-label">Rotation Z (Roll)</label>
+                        <div class="control-row">
+                            <input type="range" id="rotation-3d-z" min="-45" max="45" value="0">
+                            <span class="range-value" id="rotation-3d-z-value">0°</span>
+                        </div>
+                    </div>
+                </div>
 
                 <div class="control-group">
                     <label class="control-label">Screenshot Scale</label>

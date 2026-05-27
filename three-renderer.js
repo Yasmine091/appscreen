@@ -36,7 +36,7 @@ const deviceConfigs = {
         screenHeightFactor: 0.820,
         screenOffset: { x: 0.027, y: 0.745, z: 0.098 },
         positionOffsetFactor: 0.81,
-        cornerRadiusFactor: 0.16,
+        cornerRadiusFactor: 0.15,
         modelRotation: { x: 0, y: 0, z: 0 }  // No correction needed
     },
     samsung: {
@@ -91,6 +91,32 @@ var frameColorPresets = {
 
 // Store original material colors for the current model
 let originalMaterialColors = {};
+
+function tuneFrontCameraMaterials(model) {
+    if (!model) return;
+
+    model.traverse((child) => {
+        if (!child.isMesh || !child.material) return;
+        const meshName = (child.name || '').toLowerCase();
+        const mat = child.material;
+
+        if (meshName.includes('front camera glass') || meshName.includes('front camera glass_13') || meshName.includes('camera main_6')) {
+            // Keep GLB geometry, but ensure the glass does not hide the lens behind it.
+            mat.transparent = true;
+            mat.opacity = Math.min(typeof mat.opacity === 'number' ? mat.opacity : 1, 0.35);
+            mat.depthWrite = false;
+            mat.alphaTest = 0.01;
+            child.renderOrder = 25;
+        }
+
+        if (meshName.includes('front camera lens') || meshName.includes('front camera lens_18')) {
+            // Ensure lens stays visible through glass.
+            mat.transparent = true;
+            mat.depthWrite = false;
+            child.renderOrder = 26;
+        }
+    });
+}
 
 // Apply a frame color preset to the phone model
 function setPhoneFrameColor(presetId, deviceType) {
@@ -241,6 +267,7 @@ function loadPhoneModel() {
             const maxDim = Math.max(size.x, size.y, size.z);
             baseModelScale = 3.75 / maxDim;
             phoneModel.scale.setScalar(baseModelScale);
+            tuneFrontCameraMaterials(phoneModel);
 
             // Log all meshes to help identify the screen
             console.log('Phone model meshes:');
@@ -408,6 +435,7 @@ function switchPhoneModel(deviceType) {
             const maxDim = Math.max(size.x, size.y, size.z);
             baseModelScale = 3.75 / maxDim;
             phoneModel.scale.setScalar(baseModelScale);
+            tuneFrontCameraMaterials(phoneModel);
 
             // Create a pivot group for rotation around screen center
             const screenOffset = config.screenOffset;
@@ -495,6 +523,7 @@ function loadCachedPhoneModel(deviceType) {
                 const maxDim = Math.max(size.x, size.y, size.z);
                 const modelBaseScale = 3.75 / maxDim;
                 model.scale.setScalar(modelBaseScale);
+                tuneFrontCameraMaterials(model);
 
                 // Create pivot for this model
                 const screenOffset = config.screenOffset;
@@ -516,7 +545,9 @@ function loadCachedPhoneModel(deviceType) {
                 const geometry = new THREE.PlaneGeometry(planeWidth, planeHeight);
                 const material = new THREE.MeshBasicMaterial({
                     color: 0x111111,
-                    side: THREE.DoubleSide
+                    side: THREE.DoubleSide,
+                    transparent: true,
+                    depthWrite: false
                 });
 
                 const screenPlane = new THREE.Mesh(geometry, material);
@@ -581,7 +612,9 @@ function createScreenOverlay() {
     const geometry = new THREE.PlaneGeometry(planeWidth, planeHeight);
     const material = new THREE.MeshBasicMaterial({
         color: 0x111111,
-        side: THREE.DoubleSide
+        side: THREE.DoubleSide,
+        transparent: true,
+        depthWrite: false
     });
 
     customScreenPlane = new THREE.Mesh(geometry, material);
@@ -610,15 +643,184 @@ function createScreenOverlay() {
 }
 
 // Create a rounded corner version of the screenshot
-function createRoundedScreenImage(image, cornerRadius) {
+function sampleTopColor(image, bandHeightPx) {
+    const canvas = document.createElement('canvas');
+    canvas.width = image.width;
+    canvas.height = image.height;
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    ctx.drawImage(image, 0, 0);
+
+    const h = Math.max(1, Math.min(image.height, bandHeightPx || Math.round(image.height * 0.04)));
+    const w = image.width;
+    const imageData = ctx.getImageData(0, 0, w, h).data;
+
+    let r = 0, g = 0, b = 0, count = 0;
+    for (let i = 0; i < imageData.length; i += 4) {
+        const a = imageData[i + 3];
+        if (a < 16) continue;
+        r += imageData[i];
+        g += imageData[i + 1];
+        b += imageData[i + 2];
+        count++;
+    }
+    if (count === 0) return '#000000';
+    return `rgb(${Math.round(r / count)}, ${Math.round(g / count)}, ${Math.round(b / count)})`;
+}
+
+function getStatusForegroundColor(image) {
+    const canvas = document.createElement('canvas');
+    canvas.width = image.width;
+    canvas.height = image.height;
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    ctx.drawImage(image, 0, 0);
+    const h = Math.max(1, Math.round(image.height * 0.06));
+    const data = ctx.getImageData(0, 0, image.width, h).data;
+    let sum = 0;
+    let count = 0;
+    for (let i = 0; i < data.length; i += 4) {
+        const a = data[i + 3];
+        if (a < 16) continue;
+        const luminance = 0.2126 * data[i] + 0.7152 * data[i + 1] + 0.0722 * data[i + 2];
+        sum += luminance;
+        count++;
+    }
+    const avg = count ? sum / count : 255;
+    return avg < 145 ? '#f8f8f8' : '#101214';
+}
+
+
+
+function drawStatusBarUI(ctx, image, deviceType) {
+    const w = image.width;
+    const h = image.height;
+    const fg = getStatusForegroundColor(image);
+    const isIphone = deviceType === 'iphone';
+    const barTop = Math.round(h * (isIphone ? 0.010 : 0.009));
+    const bezelPad = Math.round(w * (isIphone ? 0.14 : 0.05));
+    const timeX = bezelPad;
+    const rightX = w - bezelPad;
+    const fontSize = Math.max(6, Math.round(h * (isIphone ? 0.0165 : 0.015)));
+
+    ctx.save();
+    ctx.fillStyle = fg;
+    ctx.strokeStyle = fg;
+    ctx.lineWidth = Math.max(1, Math.round(w * 0.0028));
+    ctx.globalAlpha = 0.92;
+    ctx.font = `600 ${fontSize}px -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", sans-serif`;
+    ctx.textBaseline = 'top';
+    ctx.textAlign = 'left';
+    ctx.fillText('8:00', timeX, barTop);
+
+    const iconY = Math.round(barTop + fontSize * 0.06);
+    const batteryW = Math.round(w * (isIphone ? 0.05 : 0.05));
+    const batteryH = Math.round(h * 0.010);
+    const batteryX = rightX - batteryW;
+    const batteryTipW = Math.max(2, Math.round(batteryW * 0.05));
+
+    // Signal bars
+    const sigX = batteryX - Math.round(w * 0.054);
+    const sigW = Math.max(1, Math.round(w * 0.005));
+    const sigGap = Math.max(1, Math.round(w * 0.004));
+    for (let i = 0; i < 4; i++) {
+        const bh = Math.max(3, Math.round(batteryH * (0.35 + i * 0.2)));
+        const bx = sigX + i * (sigW + sigGap);
+        const by = iconY + (batteryH - bh);
+        ctx.fillRect(bx, by, sigW, bh);
+    }
+
+    // Wi-Fi
+    const wifiX = sigX - Math.round(w * 0.032);
+    const wifiR = Math.round(batteryH * 0.8);
+    ctx.beginPath();
+    ctx.arc(wifiX, iconY + batteryH * 0.55, wifiR, Math.PI * 1.15, Math.PI * 1.85);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(wifiX, iconY + batteryH * 0.55, wifiR * 0.63, Math.PI * 1.18, Math.PI * 1.82);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(wifiX, iconY + batteryH * 0.55, wifiR * 0.28, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Battery
+    const bodyW = batteryW - batteryTipW - 1.5;
+    const radius = Math.max(2, Math.round(batteryH / 4));
+    ctx.beginPath();
+    ctx.moveTo(batteryX + radius, iconY);
+    ctx.lineTo(batteryX + bodyW - radius, iconY);
+    ctx.quadraticCurveTo(batteryX + bodyW, iconY, batteryX + bodyW, iconY + radius);
+    ctx.lineTo(batteryX + bodyW, iconY + batteryH - radius);
+    ctx.quadraticCurveTo(batteryX + bodyW, iconY + batteryH, batteryX + bodyW - radius, iconY + batteryH);
+    ctx.lineTo(batteryX + radius, iconY + batteryH);
+    ctx.quadraticCurveTo(batteryX, iconY + batteryH, batteryX, iconY + batteryH - radius);
+    ctx.lineTo(batteryX, iconY + radius);
+    ctx.quadraticCurveTo(batteryX, iconY, batteryX + radius, iconY);
+    ctx.closePath();
+    ctx.stroke();
+    ctx.fillRect(batteryX + 2, iconY + 2, Math.round((bodyW - 4) * 0.78), Math.max(1, batteryH - 4));
+    ctx.fillRect(batteryX + batteryW - batteryTipW, iconY + Math.round(batteryH * 0.2), batteryTipW, Math.max(1, Math.round(batteryH * 0.6)));
+    ctx.restore();
+}
+
+function drawDeviceTopOverlays(ctx, image, deviceType, screenshotSettings) {
+    const showStatusBar = screenshotSettings?.showStatusBar !== false;
+
+    // Transparent status bar: show icons only, adaptive color from screenshot top.
+    if (showStatusBar) {
+        drawStatusBarUI(ctx, image, deviceType);
+    }
+}
+
+function applyCameraCutoutMask(ctx, image, deviceType, screenshotSettings) {
+    const showCameraNotch = screenshotSettings?.showCameraNotch !== false;
+    if (!showCameraNotch) return;
+
+    const w = image.width;
+    const h = image.height;
+    ctx.save();
+    ctx.globalCompositeOperation = 'destination-out';
+
+    if (deviceType === 'iphone') {
+        // Cut out dynamic island so real GLB island/camera geometry is visible.
+        const islandW = Math.round(w * 0.26);
+        const islandH = Math.round(h * 0.034);
+        const islandX = Math.round((w - islandW) / 2);
+        const islandY = Math.round(h * 0.018);
+        const r = Math.round(islandH / 2);
+        ctx.beginPath();
+        ctx.moveTo(islandX + r, islandY);
+        ctx.lineTo(islandX + islandW - r, islandY);
+        ctx.quadraticCurveTo(islandX + islandW, islandY, islandX + islandW, islandY + r);
+        ctx.lineTo(islandX + islandW, islandY + islandH - r);
+        ctx.quadraticCurveTo(islandX + islandW, islandY + islandH, islandX + islandW - r, islandY + islandH);
+        ctx.lineTo(islandX + r, islandY + islandH);
+        ctx.quadraticCurveTo(islandX, islandY + islandH, islandX, islandY + islandH - r);
+        ctx.lineTo(islandX, islandY + r);
+        ctx.quadraticCurveTo(islandX, islandY, islandX + r, islandY);
+        ctx.closePath();
+        ctx.fill();
+    } else if (deviceType === 'samsung') {
+        // Cut out Samsung camera glass only; lens should remain centered inside this hole.
+        const holeR = Math.max(20, Math.round(w * 0.021));
+        const holeX = Math.round(w * 0.5);
+        const holeY = Math.round(h * 0.022);
+        ctx.beginPath();
+        ctx.arc(holeX, holeY, holeR, 0, Math.PI * 2);
+        ctx.fill();
+    }
+
+    ctx.restore();
+}
+
+function createRoundedScreenImage(image, cornerRadius, deviceType, screenshotSettings) {
     const canvas = document.createElement('canvas');
     canvas.width = image.width;
     canvas.height = image.height;
     const ctx = canvas.getContext('2d');
-
-    // Draw rounded rectangle path
+    const showStatusBar = screenshotSettings?.showStatusBar !== false;
     const w = canvas.width;
     const h = canvas.height;
+
+    // Draw rounded rectangle path
     const r = cornerRadius;
 
     ctx.beginPath();
@@ -635,7 +837,20 @@ function createRoundedScreenImage(image, cornerRadius) {
 
     // Clip to rounded rectangle and draw image
     ctx.clip();
-    ctx.drawImage(image, 0, 0);
+    if (showStatusBar) {
+        // Reserve a slim native-like top area and blend it from the first 2px strip.
+        const statusBarInset = deviceType === 'samsung'
+            ? Math.round(h * 0.022)
+            : Math.round(h * 0.024);
+        // Fill inset by stretching only the top 2px rows (no enlarged top-crop effect).
+        ctx.drawImage(image, 0, 0, w, 2, 0, 0, w, statusBarInset);
+        // Push full content down under the status bar space.
+        ctx.drawImage(image, 0, 0, w, h - statusBarInset, 0, statusBarInset, w, h - statusBarInset);
+    } else {
+        ctx.drawImage(image, 0, 0);
+    }
+    applyCameraCutoutMask(ctx, image, deviceType, screenshotSettings);
+    drawDeviceTopOverlays(ctx, image, deviceType, screenshotSettings);
 
     return canvas;
 }
@@ -660,7 +875,7 @@ function updateScreenTexture() {
     // Create rounded corner version of the image using device-specific corner radius
     const config = deviceConfigs[currentDeviceModel] || deviceConfigs.iphone;
     const cornerRadius = Math.round(screenshotImage.width * config.cornerRadiusFactor);
-    const roundedImage = createRoundedScreenImage(screenshotImage, cornerRadius);
+    const roundedImage = createRoundedScreenImage(screenshotImage, cornerRadius, currentDeviceModel, screenshot.screenshot);
 
     screenTexture = new THREE.Texture(roundedImage);
     screenTexture.needsUpdate = true;
@@ -671,7 +886,8 @@ function updateScreenTexture() {
     const screenMaterial = new THREE.MeshBasicMaterial({
         map: screenTexture,
         side: THREE.FrontSide,
-        transparent: true
+        transparent: true,
+        depthWrite: false
     });
 
     // Apply to custom screen plane (preferred)
@@ -872,7 +1088,7 @@ function renderThreeJSForScreenshot(targetCanvas, width, height, screenshotIndex
     const oldMaterial = screenPlaneToUse ? screenPlaneToUse.material : null;
     if (screenshotImage && screenPlaneToUse) {
         const cornerRadius = Math.round(screenshotImage.width * config.cornerRadiusFactor);
-        const roundedImage = createRoundedScreenImage(screenshotImage, cornerRadius);
+        const roundedImage = createRoundedScreenImage(screenshotImage, cornerRadius, screenshotDeviceType, ss);
         const newTexture = new THREE.Texture(roundedImage);
         newTexture.needsUpdate = true;
         newTexture.encoding = THREE.sRGBEncoding;
@@ -881,7 +1097,8 @@ function renderThreeJSForScreenshot(targetCanvas, width, height, screenshotIndex
         const newMaterial = new THREE.MeshBasicMaterial({
             map: newTexture,
             side: THREE.FrontSide,
-            transparent: true
+            transparent: true,
+            depthWrite: false
         });
         screenPlaneToUse.material = newMaterial;
     }
