@@ -90,6 +90,271 @@ function parseDataUrl(dataUrl) {
     };
 }
 
+function getCompactScreenStateForAI(screenshot, index, lang) {
+    const ss = screenshot.screenshot || {};
+    const bg = screenshot.background || {};
+    const txt = screenshot.text || {};
+    return {
+        index,
+        deviceType: screenshot.deviceType || null,
+        headline: txt.headlines?.[lang] || '',
+        subheadline: txt.subheadlines?.[lang] || '',
+        screenshot: {
+            scale: ss.scale,
+            x: ss.x,
+            y: ss.y,
+            use3D: !!ss.use3D,
+            device3D: ss.device3D || 'iphone',
+            rotation3D: ss.rotation3D || { x: 0, y: 0, z: 0 },
+            frameColor: ss.frameColor || null,
+            showStatusBar: ss.showStatusBar !== false,
+            showCameraNotch: ss.showCameraNotch !== false
+        },
+        background: {
+            type: bg.type || 'gradient',
+            solid: bg.solid || null,
+            gradient: bg.gradient ? {
+                angle: bg.gradient.angle,
+                stops: bg.gradient.stops
+            } : null
+        }
+    };
+}
+
+function getFrameColorOptionsForDevice(device3D) {
+    const presets = (typeof frameColorPresets !== 'undefined' && frameColorPresets[device3D]) ? frameColorPresets[device3D] : null;
+    if (!presets || !Array.isArray(presets) || presets.length === 0) {
+        return [{ id: 'black', name: 'Black' }];
+    }
+    return presets.map(p => ({ id: p.id, name: p.name || p.id }));
+}
+
+function populateMagicalTitlesFrameColorSelect(device3D, selectedColor) {
+    const frameColorSelect = document.getElementById('magical-titles-frame-color');
+    if (!frameColorSelect) return;
+    const options = getFrameColorOptionsForDevice(device3D);
+    frameColorSelect.innerHTML = options.map(opt => `<option value="${opt.id}">${opt.name}</option>`).join('');
+    const hasSelected = options.some(opt => opt.id === selectedColor);
+    frameColorSelect.value = hasSelected ? selectedColor : options[0].id;
+}
+
+function toggleMagicalTitles3DOptions() {
+    const modeEl = document.getElementById('magical-titles-render-mode');
+    const wrapEl = document.getElementById('magical-titles-3d-options');
+    if (!modeEl || !wrapEl) return;
+    wrapEl.style.display = modeEl.value === '3d' ? 'block' : 'none';
+}
+
+function applyPositionPresetToScreenshot(screenshot, preset) {
+    const presets = {
+        'centered': { scale: 70, x: 50, y: 50 },
+        'bleed-bottom': { scale: 85, x: 50, y: 120 },
+        'bleed-top': { scale: 85, x: 50, y: -20 },
+        'float-center': { scale: 60, x: 50, y: 50 },
+        'tilt-left': { scale: 65, x: 50, y: 60 },
+        'tilt-right': { scale: 65, x: 50, y: 60 },
+        'perspective': { scale: 65, x: 50, y: 50 },
+        'float-bottom': { scale: 55, x: 50, y: 70 }
+    };
+    const p = presets[preset];
+    if (!p || !screenshot?.screenshot) return;
+    screenshot.screenshot.scale = p.scale;
+    screenshot.screenshot.x = p.x;
+    screenshot.screenshot.y = p.y;
+}
+
+function clamp(n, min, max) {
+    return Math.max(min, Math.min(max, n));
+}
+
+function normalizeAIPopout(raw) {
+    if (!raw || typeof raw !== 'object') return null;
+    const cropX = Number(raw.cropX);
+    const cropY = Number(raw.cropY);
+    const cropWidth = Number(raw.cropWidth);
+    const cropHeight = Number(raw.cropHeight);
+    const x = Number(raw.x);
+    const y = Number(raw.y);
+    const width = Number(raw.width);
+    if ([cropX, cropY, cropWidth, cropHeight, x, y, width].some(v => !Number.isFinite(v))) return null;
+
+    return {
+        id: (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : `popout-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+        cropX: clamp(cropX, 0, 100),
+        cropY: clamp(cropY, 0, 100),
+        cropWidth: clamp(cropWidth, 5, 100),
+        cropHeight: clamp(cropHeight, 5, 100),
+        x: clamp(x, 0, 100),
+        y: clamp(y, 0, 100),
+        width: clamp(width, 5, 100),
+        rotation: Number.isFinite(Number(raw.rotation)) ? clamp(Number(raw.rotation), -45, 45) : 0,
+        opacity: Number.isFinite(Number(raw.opacity)) ? clamp(Number(raw.opacity), 10, 100) : 100,
+        cornerRadius: Number.isFinite(Number(raw.cornerRadius)) ? clamp(Number(raw.cornerRadius), 0, 80) : 12,
+        shadow: {
+            enabled: raw.shadow?.enabled !== false,
+            color: typeof raw.shadow?.color === 'string' ? raw.shadow.color : '#000000',
+            blur: Number.isFinite(Number(raw.shadow?.blur)) ? clamp(Number(raw.shadow.blur), 0, 120) : 30,
+            opacity: Number.isFinite(Number(raw.shadow?.opacity)) ? clamp(Number(raw.shadow.opacity), 0, 100) : 40,
+            x: Number.isFinite(Number(raw.shadow?.x)) ? clamp(Number(raw.shadow.x), -100, 100) : 0,
+            y: Number.isFinite(Number(raw.shadow?.y)) ? clamp(Number(raw.shadow.y), -100, 100) : 15
+        },
+        border: {
+            enabled: raw.border?.enabled !== false,
+            color: typeof raw.border?.color === 'string' ? raw.border.color : '#ffffff',
+            width: Number.isFinite(Number(raw.border?.width)) ? clamp(Number(raw.border.width), 0, 20) : 3,
+            opacity: Number.isFinite(Number(raw.border?.opacity)) ? clamp(Number(raw.border.opacity), 0, 100) : 100
+        }
+    };
+}
+
+function normalizeAIPatchesShape(raw) {
+    if (!raw || typeof raw !== 'object') return {};
+    if (raw.screens && typeof raw.screens === 'object') return raw.screens;
+    if (raw.screenshots && typeof raw.screenshots === 'object') return raw.screenshots;
+    if (Array.isArray(raw)) {
+        const out = {};
+        raw.forEach((item, i) => { out[String(i)] = item; });
+        return out;
+    }
+    return raw;
+}
+
+function enforceCampaignCoherence(patches, screenCount) {
+    const out = { ...patches };
+    const rotated = [];
+    const popoutScreens = [];
+
+    for (let i = 0; i < screenCount; i++) {
+        const p = out[String(i)];
+        if (!p || typeof p !== 'object') continue;
+
+        if (p.screenshot?.rotation3D && typeof p.screenshot.rotation3D === 'object') {
+            const r = p.screenshot.rotation3D;
+            const rx = Number(r.x) || 0;
+            const ry = Number(r.y) || 0;
+            const rz = Number(r.z) || 0;
+            const mag = Math.abs(rx) + Math.abs(ry) + Math.abs(rz);
+            if (mag > 0.5) rotated.push(i);
+        }
+
+        const hasPopouts = (Array.isArray(p.popouts) && p.popouts.length > 0) || (p.popout && typeof p.popout === 'object');
+        if (hasPopouts) popoutScreens.push(i);
+    }
+
+    // Limit popout usage to keep visuals clean.
+    if (popoutScreens.length > 2) {
+        for (let k = 2; k < popoutScreens.length; k++) {
+            const idx = popoutScreens[k];
+            if (out[String(idx)]) {
+                delete out[String(idx)].popouts;
+                delete out[String(idx)].popout;
+            }
+        }
+    }
+
+    // Prevent over-rotation noise: keep at most half the screens rotated.
+    const maxRotated = Math.max(1, Math.floor(screenCount / 2));
+    if (rotated.length > maxRotated) {
+        for (let k = maxRotated; k < rotated.length; k++) {
+            const idx = rotated[k];
+            const ssp = out[String(idx)]?.screenshot;
+            if (ssp) ssp.rotation3D = { x: 0, y: 0, z: 0 };
+        }
+    }
+
+    return out;
+}
+
+function setLayoutValueForLang(text, lang, key, value) {
+    if (!text) return;
+    if (!text.perLanguageLayout) {
+        text[key] = value;
+        return;
+    }
+    if (!text.languageSettings) text.languageSettings = {};
+    if (!text.languageSettings[lang]) {
+        text.languageSettings[lang] = {
+            headlineSize: text.headlineSize || 100,
+            subheadlineSize: text.subheadlineSize || 50,
+            position: text.position || 'top',
+            offsetY: typeof text.offsetY === 'number' ? text.offsetY : 12,
+            lineHeight: text.lineHeight || 110
+        };
+    }
+    text.languageSettings[lang][key] = value;
+    text.currentLayoutLang = lang;
+}
+
+function applyMarketingAutoLayout(screenshot, index, total, sourceLang, renderMode) {
+    if (!screenshot?.screenshot || !screenshot?.text) return;
+    const ss = screenshot.screenshot;
+    const txt = screenshot.text;
+    const lang = sourceLang || txt.currentHeadlineLang || 'en';
+
+    // Ensure text tracks screenshot horizontal position.
+    txt.alignToScreenshot = true;
+
+    // Strategy: hero + support layout with intentional whitespace.
+    const isHero = index === 0;
+    const useTopText = isHero || (index % 2 === 0);
+    const targetPos = useTopText ? 'top' : 'bottom';
+    const targetOffset = useTopText ? 8 : 10;
+    setLayoutValueForLang(txt, lang, 'position', targetPos);
+    setLayoutValueForLang(txt, lang, 'offsetY', targetOffset);
+
+    // Move phone away from text block to reduce collisions.
+    if (targetPos === 'top') {
+        if (typeof ss.y === 'number' && ss.y < 56) ss.y = 62;
+    } else {
+        if (typeof ss.y === 'number' && ss.y > 46) ss.y = 40;
+    }
+
+    // Keep support screens slightly smaller for better text breathing room.
+    if (!isHero && typeof ss.scale === 'number') {
+        ss.scale = Math.min(ss.scale, 78);
+    }
+
+    // Keep hero mostly straight; allow modest variation on support screens in 3D.
+    if (renderMode === '3d') {
+        if (!ss.rotation3D || typeof ss.rotation3D !== 'object') ss.rotation3D = { x: 0, y: 0, z: 0 };
+        if (isHero) {
+            ss.rotation3D = { x: 0, y: 0, z: 0 };
+        } else {
+            const turns = [10, -10, 16, -16];
+            if ((Math.abs(ss.rotation3D.x || 0) + Math.abs(ss.rotation3D.y || 0) + Math.abs(ss.rotation3D.z || 0)) < 0.5) {
+                ss.rotation3D = { x: -2, y: turns[(index - 1) % turns.length], z: 0 };
+            }
+        }
+    }
+}
+
+function ensureAtLeastOnePopout(screenshots, sourceLang) {
+    const hasAnyPopout = screenshots.some(s => Array.isArray(s?.popouts) && s.popouts.length > 0);
+    if (hasAnyPopout) return;
+    if (!Array.isArray(screenshots) || screenshots.length < 2) return;
+
+    // Add one clean support popout to screen 2 (or last if only two screens).
+    const targetIndex = Math.min(1, screenshots.length - 1);
+    const target = screenshots[targetIndex];
+    if (!target) return;
+
+    target.popouts = [{
+        id: (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : `popout-${Date.now()}`,
+        cropX: 62,
+        cropY: 24,
+        cropWidth: 26,
+        cropHeight: 26,
+        x: 78,
+        y: 34,
+        width: 28,
+        rotation: 8,
+        opacity: 100,
+        cornerRadius: 12,
+        shadow: { enabled: true, color: '#000000', blur: 30, opacity: 40, x: 0, y: 15 },
+        border: { enabled: true, color: '#ffffff', width: 3, opacity: 100 }
+    }];
+}
+
 /**
  * Generate titles using Anthropic Claude vision API
  * @param {string} apiKey - Anthropic API key
@@ -269,6 +534,27 @@ function showMagicalTitlesDialog() {
         return `<option value="${lang}">${langName}</option>`;
     }).join('');
 
+    // Restore previous creative prompt for convenience
+    const creativePromptEl = document.getElementById('magical-titles-prompt');
+    if (creativePromptEl) {
+        creativePromptEl.value = localStorage.getItem('magicalTitlesCreativePrompt') || '';
+    }
+
+    // Restore global style controls from current screenshot/defaults
+    const currentSS = state.screenshots[state.currentScreenshotIndex]?.screenshot
+        || state.screenshots[0]?.screenshot
+        || state.defaults?.screenshot
+        || {};
+    const use3D = !!currentSS.use3D;
+    const device3D = currentSS.device3D || 'iphone';
+    const frameColor = currentSS.frameColor || 'black';
+    const modeEl = document.getElementById('magical-titles-render-mode');
+    const deviceEl = document.getElementById('magical-titles-device-3d');
+    if (modeEl) modeEl.value = use3D ? '3d' : '2d';
+    if (deviceEl) deviceEl.value = device3D;
+    populateMagicalTitlesFrameColorSelect(device3D, frameColor);
+    toggleMagicalTitles3DOptions();
+
     // Show modal
     document.getElementById('magical-titles-modal').classList.add('visible');
 }
@@ -296,6 +582,14 @@ async function generateMagicalTitles() {
     const langSelect = document.getElementById('magical-titles-language');
     const sourceLang = langSelect.value || state.projectLanguages[0] || 'en';
     const langName = languageNames[sourceLang] || 'English';
+    const creativePrompt = (document.getElementById('magical-titles-prompt')?.value || '').trim();
+    const renderMode = document.getElementById('magical-titles-render-mode')?.value === '3d' ? '3d' : '2d';
+    const globalDevice3D = document.getElementById('magical-titles-device-3d')?.value === 'samsung' ? 'samsung' : 'iphone';
+    const globalFrameColor = document.getElementById('magical-titles-frame-color')?.value || 'black';
+    const globalStyleLine = renderMode === '3d'
+        ? `GLOBAL STYLE LOCK (applies to ALL screenshots): 3D mode, device3D="${globalDevice3D}", frameColor="${globalFrameColor}".`
+        : 'GLOBAL STYLE LOCK (applies to ALL screenshots): 2D mode (use3D=false).';
+    localStorage.setItem('magicalTitlesCreativePrompt', creativePrompt);
 
     // Collect images from all screenshots
     const images = [];
@@ -314,15 +608,40 @@ async function generateMagicalTitles() {
         return;
     }
 
-    // Build prompt
+    const compactScreens = state.screenshots.map((s, i) => getCompactScreenStateForAI(s, i, sourceLang));
+
+    // Build prompt (patch-only to minimize tokens and preserve current project styling)
+    const creativePromptSection = creativePrompt
+        ? `\nCREATIVE DIRECTION FROM USER:\n${creativePrompt}\n`
+        : '\nCREATIVE DIRECTION FROM USER: none provided. Infer best campaign direction from screenshot content.\n';
+
     const prompt = `You are an expert App Store marketing copywriter. Analyze these ${images.length} app screenshots and create compelling marketing titles.
 
 The screenshots are shown in order (1 through ${images.length}). Study what the app does and identify:
 1. The main purpose and value proposition
 2. The user problem it solves
 3. Key features visible in each screen
+4. Which sell point (if any) best fits each screenshot
 
 CRITICAL: Screenshot 1's headline MUST focus on the main value proposition - what problem does this app solve for users? This is the most important title.
+${creativePromptSection}
+MAPPING REQUIREMENTS:
+- Match each screenshot's copy to what is actually visible in that screenshot.
+${globalStyleLine}
+
+CAMPAIGN COHERENCE (HIGHEST PRIORITY):
+- First decide a single coherent visual strategy for the full set, then apply it consistently.
+- Do not maximize effects; use restraint.
+- It is valid to keep most screens clean/flat if that produces a stronger campaign.
+- Only rotate or add popouts when they clearly improve hierarchy, focus, or storytelling.
+- Avoid noisy compositions or gimmicks.
+
+3D COMPOSITION REQUIREMENTS (when global style is 3D):
+- Optimize the full set like one coherent campaign (hero + support screens).
+- Use rotation3D only where it improves visual impact; keep some screens straight if that reads better.
+- Flat/no-tilt screens are valid when they are the best design choice.
+- Vary composition across the set (not identical poses), but prioritize coherence and readability.
+- Preferred ranges when rotating: rotation3D.x -12..12, rotation3D.y -30..30, rotation3D.z -6..6.
 
 LENGTH REQUIREMENTS - THIS IS VERY IMPORTANT:
 - headline: VERY SHORT, maximum 2-4 words. Punchy, memorable, benefit-focused.
@@ -333,16 +652,37 @@ UNIQUENESS - VERY IMPORTANT:
 - Do NOT repeat or reuse similar titles across screenshots
 - Each title should highlight a DIFFERENT feature or benefit
 
+IMPORTANT: Return only CHANGES (PATCH), not full screen data. Keep token usage low.
+Allowed keys per screen patch:
+- "headline" (string)
+- "subheadline" (string)
+- "positionPreset" ("centered"|"bleed-bottom"|"bleed-top"|"float-center"|"tilt-left"|"tilt-right"|"perspective"|"float-bottom")
+- "screenshot" with optional keys: scale, x, y, rotation3D{x,y,z}, showStatusBar, showCameraNotch
+- "background" with optional keys: type, solid, gradient{angle,stops}
+- "popouts" (optional array, usually 0-2 items) where each item can include:
+  cropX,cropY,cropWidth,cropHeight,x,y,width,rotation,opacity,cornerRadius,
+  shadow{enabled,color,blur,opacity,x,y}, border{enabled,color,width,opacity}
+- Also accepted: "popout" (single object), which will be converted to a one-item array.
+
+CONSERVATIVE RULES:
+- Default: no popout unless there is a clear visual reason.
+- Prefer at most 1 popout on a minority of screens.
+- Avoid strong tilt on text-heavy screens.
+
+CURRENT PROJECT SNAPSHOT (compact JSON):
+${JSON.stringify(compactScreens)}
+
 Examples of good headlines: "Track Every Expense", "Sleep Better Tonight", "Never Forget Again"
 Examples of good subheadlines: "Automatic expense categorization and insights", "Science-backed sleep improvement", "Smart reminders that actually work"
 
 Return ONLY valid JSON in this exact format (no markdown, no explanation):
 {
-    "0": { "headline": "...", "subheadline": "..." },
-    "1": { "headline": "...", "subheadline": "..." }
+    "0": { "headline": "...", "subheadline": "...", "positionPreset": "centered", "screenshot": {"scale": 72, "rotation3D":{"x":-4,"y":18,"z":0}} },
+    "1": { "headline": "...", "subheadline": "...", "popouts": [ { "cropX": 60, "cropY": 25, "cropWidth": 26, "cropHeight": 26, "x": 78, "y": 36, "width": 28, "rotation": 8 } ] }
 }
 
 Where the keys are 0-indexed screenshot numbers.
+Only include screens that need changes.
 Write all titles in ${langName}.`;
 
     // Create progress overlay
@@ -400,38 +740,100 @@ Write all titles in ${langName}.`;
 
         console.log('Magical Titles response:', responseText);
 
-        // Parse JSON
-        const titles = JSON.parse(responseText);
+        // Parse JSON and normalize possible wrapper shapes
+        let titles = normalizeAIPatchesShape(JSON.parse(responseText));
+        titles = enforceCampaignCoherence(titles, state.screenshots.length);
 
         updateStatus('Applying titles...', 'Updating screenshots');
 
-        // Apply titles to screenshots
+        // Apply global campaign style lock to all screenshots
         for (let i = 0; i < state.screenshots.length; i++) {
-            const titleData = titles[String(i)];
-            if (titleData) {
-                const screenshot = state.screenshots[i];
+            const screenshot = state.screenshots[i];
+            if (!screenshot) continue;
+            if (!screenshot.screenshot) screenshot.screenshot = {};
+            screenshot.screenshot.use3D = renderMode === '3d';
+            if (renderMode === '3d') {
+                screenshot.screenshot.device3D = globalDevice3D;
+                screenshot.screenshot.frameColor = globalFrameColor;
+                if (!screenshot.screenshot.rotation3D) screenshot.screenshot.rotation3D = { x: 0, y: 0, z: 0 };
+            }
+        }
 
-                // Ensure text object exists with proper structure
-                if (!screenshot.text) {
-                    screenshot.text = {
-                        headlines: {},
-                        subheadlines: {}
+        // Apply patch to screenshots
+        const allowedPresets = new Set(['centered', 'bleed-bottom', 'bleed-top', 'float-center', 'tilt-left', 'tilt-right', 'perspective', 'float-bottom']);
+        for (let i = 0; i < state.screenshots.length; i++) {
+            const patch = titles[String(i)];
+            if (!patch) continue;
+            const screenshot = state.screenshots[i];
+            if (!screenshot) continue;
+
+            if (!screenshot.text) screenshot.text = { headlines: {}, subheadlines: {} };
+            if (!screenshot.text.headlines) screenshot.text.headlines = {};
+            if (!screenshot.text.subheadlines) screenshot.text.subheadlines = {};
+            screenshot.text.alignToScreenshot = true;
+            if (!screenshot.screenshot) screenshot.screenshot = {};
+            if (!screenshot.background) screenshot.background = {};
+
+            if (typeof patch.headline === 'string' && patch.headline.trim()) {
+                screenshot.text.headlines[sourceLang] = patch.headline.trim();
+                screenshot.text.headlineEnabled = true;
+            }
+            if (typeof patch.subheadline === 'string' && patch.subheadline.trim()) {
+                screenshot.text.subheadlines[sourceLang] = patch.subheadline.trim();
+                screenshot.text.subheadlineEnabled = true;
+            }
+
+            if (typeof patch.positionPreset === 'string' && allowedPresets.has(patch.positionPreset)) {
+                applyPositionPresetToScreenshot(screenshot, patch.positionPreset);
+            }
+
+            const ssp = patch.screenshot;
+            if (ssp && typeof ssp === 'object') {
+                const keys = ['scale', 'x', 'y', 'showStatusBar', 'showCameraNotch'];
+                keys.forEach(k => {
+                    if (ssp[k] !== undefined) screenshot.screenshot[k] = ssp[k];
+                });
+                if (ssp.rotation3D && typeof ssp.rotation3D === 'object') {
+                    screenshot.screenshot.rotation3D = {
+                        x: ssp.rotation3D.x ?? screenshot.screenshot.rotation3D?.x ?? 0,
+                        y: ssp.rotation3D.y ?? screenshot.screenshot.rotation3D?.y ?? 0,
+                        z: ssp.rotation3D.z ?? screenshot.screenshot.rotation3D?.z ?? 0
                     };
                 }
-                if (!screenshot.text.headlines) screenshot.text.headlines = {};
-                if (!screenshot.text.subheadlines) screenshot.text.subheadlines = {};
+            }
 
-                // Set the titles for the source language
-                if (titleData.headline) {
-                    screenshot.text.headlines[sourceLang] = titleData.headline;
-                    screenshot.text.headlineEnabled = true;
+            const bgp = patch.background;
+            if (bgp && typeof bgp === 'object') {
+                if (bgp.type !== undefined) screenshot.background.type = bgp.type;
+                if (bgp.solid !== undefined) screenshot.background.solid = bgp.solid;
+                if (bgp.gradient && typeof bgp.gradient === 'object') {
+                    if (!screenshot.background.gradient) screenshot.background.gradient = {};
+                    if (bgp.gradient.angle !== undefined) screenshot.background.gradient.angle = bgp.gradient.angle;
+                    if (bgp.gradient.stops !== undefined) screenshot.background.gradient.stops = bgp.gradient.stops;
                 }
-                if (titleData.subheadline) {
-                    screenshot.text.subheadlines[sourceLang] = titleData.subheadline;
-                    screenshot.text.subheadlineEnabled = true;
+            }
+
+            const incomingPopouts = Array.isArray(patch.popouts)
+                ? patch.popouts
+                : (patch.popout && typeof patch.popout === 'object' ? [patch.popout] : null);
+            if (incomingPopouts) {
+                const normalized = incomingPopouts
+                    .slice(0, 3)
+                    .map(normalizeAIPopout)
+                    .filter(Boolean);
+                if (normalized.length > 0) {
+                    screenshot.popouts = normalized;
                 }
             }
         }
+
+        // Deterministic cleanup pass for coherence and phone/text collision avoidance.
+        for (let i = 0; i < state.screenshots.length; i++) {
+            const screenshot = state.screenshots[i];
+            applyMarketingAutoLayout(screenshot, i, state.screenshots.length, sourceLang, renderMode);
+        }
+        ensureAtLeastOnePopout(state.screenshots, sourceLang);
+
 
         // Update UI
         syncUIWithState();
@@ -442,7 +844,8 @@ Write all titles in ${langName}.`;
         progressOverlay.remove();
 
         // Show success message
-        await showAppAlert(`Generated titles for ${Object.keys(titles).length} screenshots in ${langName}!`, 'success');
+        const changedScreens = Object.keys(titles).filter(k => !Number.isNaN(Number(k)));
+        await showAppAlert(`Generated titles for ${changedScreens.length} screenshots in ${langName}!`, 'success');
 
     } catch (error) {
         console.error('Magical Titles error:', error);
@@ -457,3 +860,19 @@ Write all titles in ${langName}.`;
         }
     }
 }
+
+document.addEventListener('DOMContentLoaded', () => {
+    const modeEl = document.getElementById('magical-titles-render-mode');
+    const deviceEl = document.getElementById('magical-titles-device-3d');
+    if (modeEl) {
+        modeEl.addEventListener('change', () => {
+            toggleMagicalTitles3DOptions();
+        });
+    }
+    if (deviceEl) {
+        deviceEl.addEventListener('change', () => {
+            const device3D = deviceEl.value === 'samsung' ? 'samsung' : 'iphone';
+            populateMagicalTitlesFrameColorSelect(device3D, null);
+        });
+    }
+});

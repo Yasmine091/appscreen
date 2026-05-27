@@ -7226,7 +7226,7 @@ function renderScreenshotToCanvas(index, targetCanvas, targetCtx, dims, previewS
 
     // Draw text
     const txt = screenshot.text;
-    drawTextToContext(targetCtx, dims, txt);
+    drawTextToContext(targetCtx, dims, txt, settings);
 
     // Elements above text
     drawElementsToContext(targetCtx, dims, elements, 'above-text');
@@ -7414,7 +7414,7 @@ function drawDeviceFrameToContext(context, x, y, width, height, settings) {
     context.globalAlpha = 1;
 }
 
-function drawTextToContext(context, dims, txt) {
+function drawTextToContext(context, dims, txt, screenshotSettings = null) {
     // Check enabled states (default headline to true for backwards compatibility)
     const headlineEnabled = txt.headlineEnabled !== false;
     const subheadlineEnabled = txt.subheadlineEnabled || false;
@@ -7435,6 +7435,11 @@ function drawTextToContext(context, dims, txt) {
     const textY = layoutSettings.position === 'top'
         ? dims.height * (layoutSettings.offsetY / 100)
         : dims.height * (1 - layoutSettings.offsetY / 100);
+
+    const anchorXPercent = (txt.alignToScreenshot && screenshotSettings && typeof screenshotSettings.x === 'number')
+        ? screenshotSettings.x
+        : 50;
+    const textCenterX = dims.width * (anchorXPercent / 100);
 
     context.textAlign = 'center';
     context.textBaseline = layoutSettings.position === 'top' ? 'top' : 'bottom';
@@ -7459,13 +7464,13 @@ function drawTextToContext(context, dims, txt) {
         lines.forEach((line, i) => {
             const y = currentY + i * lineHeight;
             lastLineY = y;
-            context.fillText(line, dims.width / 2, y);
+            context.fillText(line, textCenterX, y);
 
             // Calculate text metrics for decorations
             const textWidth = context.measureText(line).width;
             const fontSize = headlineLayout.headlineSize;
             const lineThickness = Math.max(2, fontSize * 0.05);
-            const x = dims.width / 2 - textWidth / 2;
+            const x = textCenterX - textWidth / 2;
 
             // Draw underline
             if (txt.headlineUnderline) {
@@ -7516,13 +7521,13 @@ function drawTextToContext(context, dims, txt) {
 
         lines.forEach((line, i) => {
             const y = subY + i * subLineHeight;
-            context.fillText(line, dims.width / 2, y);
+            context.fillText(line, textCenterX, y);
 
             // Calculate text metrics for decorations
             const textWidth = context.measureText(line).width;
             const fontSize = subheadlineLayout.subheadlineSize;
             const lineThickness = Math.max(2, fontSize * 0.05);
-            const x = dims.width / 2 - textWidth / 2;
+            const x = textCenterX - textWidth / 2;
 
             // Draw underline (using 'top' baseline for subheadline)
             if (txt.subheadlineUnderline) {
@@ -8031,6 +8036,10 @@ function drawText() {
         ? dims.height * (layoutSettings.offsetY / 100)
         : dims.height * (1 - layoutSettings.offsetY / 100);
 
+    const ss = getScreenshotSettings();
+    const anchorXPercent = (text.alignToScreenshot && ss && typeof ss.x === 'number') ? ss.x : 50;
+    const textCenterX = dims.width * (anchorXPercent / 100);
+
     ctx.textAlign = 'center';
     ctx.textBaseline = layoutSettings.position === 'top' ? 'top' : 'bottom';
 
@@ -8053,14 +8062,14 @@ function drawText() {
         lines.forEach((line, i) => {
             const y = currentY + i * lineHeight;
             lastLineY = y;
-            ctx.fillText(line, dims.width / 2, y);
+            ctx.fillText(line, textCenterX, y);
 
             // Calculate text metrics for decorations
             // When textBaseline is 'top', y is at top of text; when 'bottom', y is at bottom
             const textWidth = ctx.measureText(line).width;
             const fontSize = headlineLayout.headlineSize;
             const lineThickness = Math.max(2, fontSize * 0.05);
-            const x = dims.width / 2 - textWidth / 2;
+            const x = textCenterX - textWidth / 2;
 
             // Draw underline
             if (text.headlineUnderline) {
@@ -8111,13 +8120,13 @@ function drawText() {
 
         lines.forEach((line, i) => {
             const y = subY + i * subLineHeight;
-            ctx.fillText(line, dims.width / 2, y);
+            ctx.fillText(line, textCenterX, y);
 
             // Calculate text metrics for decorations
             const textWidth = ctx.measureText(line).width;
             const fontSize = subheadlineLayout.subheadlineSize;
             const lineThickness = Math.max(2, fontSize * 0.05);
-            const x = dims.width / 2 - textWidth / 2;
+            const x = textCenterX - textWidth / 2;
 
             // Draw underline (using 'top' baseline for subheadline)
             if (text.subheadlineUnderline) {

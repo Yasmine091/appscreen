@@ -31,9 +31,10 @@ let phoneModelCache = {};  // { deviceType: { model, pivot, screenPlane, baseSca
 const deviceConfigs = {
     iphone: {
         modelPath: 'models/iphone-15-pro-max.glb',
-        aspectRatio: 1290 / 2796,
+        aspectRatio: 1290 / 2768,
         // Calibrated to avoid top/bottom bezel clipping on iPhone model
-        screenHeightFactor: 0.820,
+        screenHeightFactor: 0.822
+        ,
         screenOffset: { x: 0.027, y: 0.745, z: 0.098 },
         positionOffsetFactor: 0.81,
         cornerRadiusFactor: 0.15,
@@ -800,7 +801,7 @@ function applyCameraCutoutMask(ctx, image, deviceType, screenshotSettings) {
         ctx.fill();
     } else if (deviceType === 'samsung') {
         // Cut out Samsung camera glass only; lens should remain centered inside this hole.
-        const holeR = Math.max(20, Math.round(w * 0.021));
+        const holeR = Math.max(26, Math.round(w * 0.021));
         const holeX = Math.round(w * 0.5);
         const holeY = Math.round(h * 0.022);
         ctx.beginPath();

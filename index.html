@@ -1579,6 +1579,27 @@
                     <!-- Populated dynamically -->
                 </select>
             </div>
+            <div class="translate-source" style="margin-top: 12px;">
+                <label class="control-label">Creative Prompt (optional)</label>
+                <textarea id="magical-titles-prompt" rows="4" placeholder="e.g. Premium, minimal, health-focused campaign with bold benefits and clean wording."></textarea>
+                <p class="modal-message" style="margin-top: 8px; font-size: 12px; color: var(--text-tertiary);">Give AI art direction and tone for the whole set.</p>
+            </div>
+            <div class="translate-source" style="margin-top: 12px;">
+                <label class="control-label">Global Device Style (all screens)</label>
+                <select id="magical-titles-render-mode" style="margin-bottom: 0;">
+                    <option value="2d">2D for all screens</option>
+                    <option value="3d">3D for all screens</option>
+                </select>
+            </div>
+            <div class="translate-source" id="magical-titles-3d-options" style="margin-top: 12px; display: none;">
+                <label class="control-label">3D Device Model (all screens)</label>
+                <select id="magical-titles-device-3d" style="margin-bottom: 8px;">
+                    <option value="iphone">iPhone</option>
+                    <option value="samsung">Samsung</option>
+                </select>
+                <label class="control-label">3D Frame Color (all screens)</label>
+                <select id="magical-titles-frame-color" style="margin-bottom: 0;"></select>
+            </div>
             <div class="modal-buttons">
                 <button class="modal-btn modal-btn-cancel" id="magical-titles-cancel">Cancel</button>
                 <button class="modal-btn modal-btn-confirm" id="magical-titles-confirm" style="background: linear-gradient(135deg, #ffa500 0%, #ff8c00 100%);">Generate Titles</button>
