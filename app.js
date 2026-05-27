@@ -540,6 +540,45 @@ function formatValue(num) {
     return Number.isInteger(rounded) ? rounded.toString() : rounded.toFixed(1);
 }
 
+function isDrawableImage(value) {
+    return !!(value && typeof value === 'object' && typeof value.width === 'number' && typeof value.height === 'number');
+}
+
+function serializeBackground(background) {
+    const safeBackground = JSON.parse(JSON.stringify(background || {}));
+    const srcFromImage = isDrawableImage(background?.image) ? background.image.src : null;
+    const srcFromString = typeof background?.image === 'string' ? background.image : null;
+    safeBackground.imageSrc = background?.imageSrc || srcFromImage || srcFromString || null;
+    safeBackground.image = null;
+    return safeBackground;
+}
+
+function hydrateBackgroundImage(background, onLoad) {
+    if (!background) return;
+
+    if (typeof background.image === 'string' && !background.imageSrc) {
+        background.imageSrc = background.image;
+    }
+
+    if (background.image && isDrawableImage(background.image)) {
+        if (!background.imageSrc) background.imageSrc = background.image.src || null;
+        return;
+    }
+
+    background.image = null;
+    if (!background.imageSrc) return;
+
+    const img = new Image();
+    img.onload = () => {
+        background.image = img;
+        if (typeof onLoad === 'function') onLoad();
+    };
+    img.onerror = () => {
+        background.image = null;
+    };
+    img.src = background.imageSrc;
+}
+
 function setBackground(key, value) {
     const screenshot = getCurrentScreenshot();
     if (screenshot) {
@@ -552,6 +591,9 @@ function setBackground(key, value) {
             obj[parts[parts.length - 1]] = value;
         } else {
             screenshot.background[key] = value;
+        }
+        if (key === 'image') {
+            screenshot.background.imageSrc = isDrawableImage(value) ? value.src : null;
         }
     }
 }
@@ -582,7 +624,7 @@ function setTextSetting(key, value) {
 function setCurrentScreenshotAsDefault() {
     const screenshot = getCurrentScreenshot();
     if (screenshot) {
-        state.defaults.background = JSON.parse(JSON.stringify(screenshot.background));
+        state.defaults.background = serializeBackground(screenshot.background);
         state.defaults.screenshot = JSON.parse(JSON.stringify(screenshot.screenshot));
         state.defaults.text = JSON.parse(JSON.stringify(screenshot.text));
     }
@@ -1510,7 +1552,7 @@ function saveState() {
             name: s.name,
             deviceType: s.deviceType,
             localizedImages: localizedImages,
-            background: s.background,
+            background: serializeBackground(s.background),
             screenshot: s.screenshot,
             text: s.text,
             elements: (s.elements || []).map(el => ({
@@ -1532,7 +1574,10 @@ function saveState() {
         customHeight: state.customHeight,
         currentLanguage: state.currentLanguage,
         projectLanguages: state.projectLanguages,
-        defaults: state.defaults
+        defaults: {
+            ...state.defaults,
+            background: serializeBackground(state.defaults.background)
+        }
     };
 
     // Update screenshot count in project metadata
@@ -1628,6 +1673,7 @@ function loadState() {
                                 gradient: parsed.background.gradient || state.defaults.background.gradient,
                                 solid: parsed.background.solid || state.defaults.background.solid,
                                 image: null,
+                                imageSrc: parsed.background.imageSrc || null,
                                 imageFit: parsed.background.imageFit || 'cover',
                                 imageBlur: parsed.background.imageBlur || 0,
                                 overlayColor: parsed.background.overlayColor || '#000000',
@@ -1663,7 +1709,7 @@ function loadState() {
                                     name: s.name || 'Blank Screen',
                                     deviceType: s.deviceType,
                                     localizedImages: {},
-                                    background: s.background || JSON.parse(JSON.stringify(migratedBackground)),
+                                    background: serializeBackground(s.background || migratedBackground),
                                     screenshot: screenshotSettings,
                                     text: s.text || JSON.parse(JSON.stringify(migratedText)),
                                     elements: reconstructElementImages(s.elements),
@@ -1671,6 +1717,7 @@ function loadState() {
                                     overrides: s.overrides || {}
                                 };
                                 loadedCount++;
+                                hydrateBackgroundImage(state.screenshots[index].background, updateCanvas);
                                 checkAllLoaded();
                             } else if (hasLocalizedImages) {
                                 // New format: load all localized images
@@ -1702,7 +1749,7 @@ function loadState() {
                                                     name: s.name,
                                                     deviceType: s.deviceType,
                                                     localizedImages: localizedImages,
-                                                    background: s.background || JSON.parse(JSON.stringify(migratedBackground)),
+                                                    background: serializeBackground(s.background || migratedBackground),
                                                     screenshot: screenshotSettings,
                                                     text: s.text || JSON.parse(JSON.stringify(migratedText)),
                                                     elements: reconstructElementImages(s.elements),
@@ -1710,6 +1757,7 @@ function loadState() {
                                                     overrides: s.overrides || {}
                                                 };
                                                 loadedCount++;
+                                                hydrateBackgroundImage(state.screenshots[index].background, updateCanvas);
                                                 checkAllLoaded();
                                             }
                                         };
@@ -1747,7 +1795,7 @@ function loadState() {
                                         name: s.name,
                                         deviceType: s.deviceType,
                                         localizedImages: localizedImages,
-                                        background: s.background || JSON.parse(JSON.stringify(migratedBackground)),
+                                        background: serializeBackground(s.background || migratedBackground),
                                         screenshot: screenshotSettings,
                                         text: s.text || JSON.parse(JSON.stringify(migratedText)),
                                         elements: reconstructElementImages(s.elements),
@@ -1755,6 +1803,7 @@ function loadState() {
                                         overrides: s.overrides || {}
                                     };
                                     loadedCount++;
+                                    hydrateBackgroundImage(state.screenshots[index].background, updateCanvas);
                                     checkAllLoaded();
                                 };
                                 img.src = s.src;
@@ -1793,10 +1842,14 @@ function loadState() {
                     // Load defaults (new format) or use migrated settings
                     if (parsed.defaults) {
                         state.defaults = parsed.defaults;
+                        state.defaults.background = serializeBackground(state.defaults.background);
+                        hydrateBackgroundImage(state.defaults.background, updateCanvas);
                         // Ensure elements array exists (may be missing from older saves)
                         if (!state.defaults.elements) state.defaults.elements = [];
                     } else {
                         state.defaults.background = migratedBackground;
+                        state.defaults.background = serializeBackground(state.defaults.background);
+                        hydrateBackgroundImage(state.defaults.background, updateCanvas);
                         state.defaults.screenshot = migratedScreenshot;
                         state.defaults.text = migratedText;
                     }
@@ -2078,6 +2131,9 @@ function duplicateScreenshot(index) {
         clone.image = img;
     }
 
+    clone.background = serializeBackground(original.background);
+    hydrateBackgroundImage(clone.background, updateCanvas);
+
     state.screenshots.splice(index + 1, 0, clone);
     state.selectedIndex = index + 1;
 
@@ -2298,7 +2354,7 @@ function syncUIWithState() {
 
     // Hide 2D-only settings in 3D mode, show 3D tip
     document.getElementById('2d-only-settings').style.display = use3D ? 'none' : 'block';
-    document.getElementById('position-presets-section').style.display = use3D ? 'none' : 'block';
+    document.getElementById('position-presets-section').style.display = 'block';
     document.getElementById('frame-color-section').style.display = use3D ? 'block' : 'none';
     document.getElementById('3d-tip').style.display = use3D ? 'flex' : 'none';
 
@@ -4629,7 +4685,7 @@ function setupEventListeners() {
 
             // Hide 2D-only settings in 3D mode, show 3D tip
             document.getElementById('2d-only-settings').style.display = use3D ? 'none' : 'block';
-            document.getElementById('position-presets-section').style.display = use3D ? 'none' : 'block';
+            document.getElementById('position-presets-section').style.display = 'block';
             document.getElementById('frame-color-section').style.display = use3D ? 'block' : 'none';
             document.getElementById('3d-tip').style.display = use3D ? 'flex' : 'none';
 
@@ -6197,7 +6253,7 @@ function createNewScreenshot(img, src, name, lang, deviceType) {
         name: name || 'Blank Screen',
         deviceType: deviceType,
         localizedImages: localizedImages,
-        background: JSON.parse(JSON.stringify(state.defaults.background)),
+        background: serializeBackground(state.defaults.background),
         screenshot: JSON.parse(JSON.stringify(state.defaults.screenshot)),
         text: JSON.parse(JSON.stringify(textDefaults)),
         elements: JSON.parse(JSON.stringify(state.defaults.elements || [])),
@@ -6205,6 +6261,7 @@ function createNewScreenshot(img, src, name, lang, deviceType) {
         // Legacy overrides for backwards compatibility
         overrides: {}
     });
+    hydrateBackgroundImage(state.screenshots[state.screenshots.length - 1].background, updateCanvas);
 
     updateScreenshotList();
     if (state.screenshots.length === 1) {
@@ -6581,11 +6638,8 @@ function transferStyle(sourceIndex, targetIndex) {
     }
 
     // Deep copy background settings
-    target.background = JSON.parse(JSON.stringify(source.background));
-    // Handle background image separately (not JSON serializable)
-    if (source.background.image) {
-        target.background.image = source.background.image;
-    }
+    target.background = serializeBackground(source.background);
+    hydrateBackgroundImage(target.background, updateCanvas);
 
     // Deep copy screenshot settings
     target.screenshot = JSON.parse(JSON.stringify(source.screenshot));
@@ -6644,11 +6698,8 @@ function applyStyleToAll() {
         if (index === applyStyleSourceIndex) return; // Skip source
 
         // Deep copy background settings
-        target.background = JSON.parse(JSON.stringify(source.background));
-        // Handle background image separately (not JSON serializable)
-        if (source.background.image) {
-            target.background.image = source.background.image;
-        }
+        target.background = serializeBackground(source.background);
+        hydrateBackgroundImage(target.background, updateCanvas);
 
         // Deep copy screenshot settings
         target.screenshot = JSON.parse(JSON.stringify(source.screenshot));
@@ -7119,7 +7170,7 @@ function drawBackgroundToContext(context, dims, bg) {
     } else if (bg.type === 'solid') {
         context.fillStyle = bg.solid;
         context.fillRect(0, 0, dims.width, dims.height);
-    } else if (bg.type === 'image' && bg.image) {
+    } else if (bg.type === 'image' && isDrawableImage(bg.image)) {
         const img = bg.image;
         let sx = 0, sy = 0, sw = img.width, sh = img.height;
         let dx = 0, dy = 0, dw = dims.width, dh = dims.height;
@@ -7711,7 +7762,7 @@ function drawBackground() {
     } else if (bg.type === 'solid') {
         ctx.fillStyle = bg.solid;
         ctx.fillRect(0, 0, dims.width, dims.height);
-    } else if (bg.type === 'image' && bg.image) {
+    } else if (bg.type === 'image' && isDrawableImage(bg.image)) {
         const img = bg.image;
         let sx = 0, sy = 0, sw = img.width, sh = img.height;
         let dx = 0, dy = 0, dw = dims.width, dh = dims.height;
