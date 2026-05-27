@@ -33,8 +33,8 @@ const deviceConfigs = {
         modelPath: 'models/iphone-15-pro-max.glb',
         aspectRatio: 1290 / 2796,
         // Calibrated to avoid top/bottom bezel clipping on iPhone model
-        screenHeightFactor: 0.792,
-        screenOffset: { x: 0.027, y: 0.73, z: 0.098 },
+        screenHeightFactor: 0.820,
+        screenOffset: { x: 0.027, y: 0.745, z: 0.098 },
         positionOffsetFactor: 0.81,
         cornerRadiusFactor: 0.16,
         modelRotation: { x: 0, y: 0, z: 0 }  // No correction needed
