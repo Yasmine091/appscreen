@@ -9,6 +9,7 @@ let screenMesh = null;
 let customScreenPlane = null;
 let orbitControls = null;
 let isThreeJSInitialized = false;
+let threeJSUnavailable = false;
 let phoneModelLoaded = false;
 let phoneModelLoading = false;
 
@@ -165,13 +166,15 @@ function setCachedModelFrameColor(presetId, deviceType) {
 
 // Initialize Three.js scene
 function initThreeJS() {
-    if (isThreeJSInitialized) return;
+    if (isThreeJSInitialized) return true;
+    if (threeJSUnavailable) return false;
 
     const container = document.getElementById('threejs-container');
-    if (!container) return;
+    if (!container) return false;
     if (typeof THREE === 'undefined' || typeof THREE.GLTFLoader !== 'function') {
         console.error('Three.js or GLTFLoader is unavailable; using the 2D preview fallback.');
-        return;
+        threeJSUnavailable = true;
+        return false;
     }
 
     // Create scene with a gradient background color (we'll update this dynamically)
@@ -183,14 +186,50 @@ function initThreeJS() {
     threeCamera = new THREE.PerspectiveCamera(35, aspect, 0.1, 1000);
     threeCamera.position.set(0, 0, 6);
 
-    // Create renderer - disable antialiasing for faster interactive performance
-    // Quality rendering is done at export time with higher resolution
-    threeRenderer = new THREE.WebGLRenderer({
-        antialias: false,  // Disable for better performance
-        alpha: true,
-        preserveDrawingBuffer: true,
-        powerPreference: 'high-performance'
-    });
+    // Request a conservative context explicitly. Some Linux/virtualized
+    // browsers reject Three.js' high-performance context preference even
+    // though WebGL1 or the default-power WebGL2 context works.
+    try {
+        const rendererCanvas = document.createElement('canvas');
+        const contextAttributes = {
+            alpha: true,
+            antialias: false,
+            preserveDrawingBuffer: true,
+            powerPreference: 'default',
+            failIfMajorPerformanceCaveat: false
+        };
+        const context =
+            rendererCanvas.getContext('webgl2', contextAttributes) ||
+            rendererCanvas.getContext('webgl', contextAttributes) ||
+            rendererCanvas.getContext('experimental-webgl', contextAttributes);
+
+        if (!context) {
+            throw new Error('This browser did not provide a WebGL2 or WebGL1 context');
+        }
+
+        threeRenderer = new THREE.WebGLRenderer({
+            canvas: rendererCanvas,
+            context,
+            antialias: false,
+            alpha: true,
+            preserveDrawingBuffer: true
+        });
+        rendererCanvas.addEventListener('webglcontextlost', (event) => {
+            event.preventDefault();
+            threeJSUnavailable = true;
+            isThreeJSInitialized = false;
+            phoneModelLoaded = false;
+            console.error('The WebGL context was lost; 3D previews are disabled for this session.');
+            if (typeof updateCanvas === 'function') updateCanvas();
+        }, { once: true });
+    } catch (error) {
+        threeRenderer = null;
+        threeScene = null;
+        threeCamera = null;
+        threeJSUnavailable = true;
+        console.error('3D previews are unavailable; using the 2D fallback.', error);
+        return false;
+    }
     threeRenderer.setSize(400, 700);
     // Use device pixel ratio of 1 for fastest interactive rendering
     threeRenderer.setPixelRatio(1);
@@ -244,6 +283,7 @@ function initThreeJS() {
 
     // Start animation loop
     animateThreeJS();
+    return true;
 }
 
 // Load the phone 3D model based on currentDeviceModel
@@ -1237,8 +1277,8 @@ function showThreeJS(show) {
         canvas.style.display = 'block'; // Always visible
     }
 
-    if (show && !isThreeJSInitialized) {
-        initThreeJS();
+    if (show && !isThreeJSInitialized && !initThreeJS()) {
+        return false;
     }
 
     // Apply current rotation and background
@@ -1251,6 +1291,7 @@ function showThreeJS(show) {
             updateScreenTexture();
         }
     }
+    return !show || isThreeJSInitialized;
 }
 
 // Get Three.js canvas for export

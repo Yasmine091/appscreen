@@ -7041,10 +7041,10 @@ function updateSidePreviews() {
     // Initialize Three.js if any screenshot uses 3D mode (needed for side previews)
     const any3D = state.screenshots.some(s => s.screenshot?.use3D);
     if (any3D && typeof showThreeJS === 'function') {
-        showThreeJS(true);
+        const threeReady = showThreeJS(true) !== false;
 
         // Preload phone models for adjacent screenshots to prevent flicker
-        if (typeof loadCachedPhoneModel === 'function') {
+        if (threeReady && typeof loadCachedPhoneModel === 'function') {
             const adjacentIndices = [state.selectedIndex - 1, state.selectedIndex + 1]
                 .filter(i => i >= 0 && i < state.screenshots.length);
             adjacentIndices.forEach(i => {
