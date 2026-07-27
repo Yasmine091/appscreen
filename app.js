@@ -2405,10 +2405,11 @@ function syncUIWithState() {
     document.getElementById('3d-tip').style.display = use3D ? 'flex' : 'none';
 
     // Show/hide 3D renderer and switch model if needed
+    let threeReady = !use3D;
     if (typeof showThreeJS === 'function') {
-        showThreeJS(use3D);
+        threeReady = showThreeJS(use3D) !== false;
     }
-    if (use3D && typeof switchPhoneModel === 'function') {
+    if (use3D && threeReady && typeof switchPhoneModel === 'function') {
         switchPhoneModel(device3D);
     }
 
@@ -4771,7 +4772,8 @@ function setupEventListeners() {
             setScreenshotSetting('frameColor', defaultColor);
             updateFrameColorSwatches(device3D, defaultColor);
 
-            if (typeof switchPhoneModel === 'function') {
+            const threeReady = typeof showThreeJS !== 'function' || showThreeJS(true) !== false;
+            if (threeReady && typeof switchPhoneModel === 'function') {
                 switchPhoneModel(device3D);
             }
 

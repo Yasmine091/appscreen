@@ -288,7 +288,8 @@ function initThreeJS() {
 
 // Load the phone 3D model based on currentDeviceModel
 function loadPhoneModel() {
-    if (phoneModelLoading) return; // Prevent double loading
+    if (threeJSUnavailable || !isThreeJSInitialized || !threeScene) return false;
+    if (phoneModelLoading) return false; // Prevent double loading
     phoneModelLoading = true;
 
     const config = deviceConfigs[currentDeviceModel] || deviceConfigs.iphone;
@@ -298,6 +299,10 @@ function loadPhoneModel() {
         config.modelPath,
         (gltf) => {
             phoneModelLoading = false;
+            if (threeJSUnavailable || !threeScene) {
+                phoneModelLoaded = false;
+                return;
+            }
             phoneModel = gltf.scene;
 
             // Center and scale the model
@@ -426,9 +431,12 @@ function loadPhoneModel() {
 
 // Switch to a different phone model
 function switchPhoneModel(deviceType) {
+    if (threeJSUnavailable || !isThreeJSInitialized || !threeScene) {
+        return false;
+    }
     if (!deviceConfigs[deviceType]) {
         console.error('Unknown device type:', deviceType);
-        return;
+        return false;
     }
 
     // Skip if same device and already loaded or loading
@@ -474,6 +482,10 @@ function switchPhoneModel(deviceType) {
         config.modelPath,
         (gltf) => {
             phoneModelLoading = false;
+            if (threeJSUnavailable || !threeScene) {
+                phoneModelLoaded = false;
+                return;
+            }
             phoneModel = gltf.scene;
 
             // Center and scale the model
@@ -548,6 +560,9 @@ function switchPhoneModel(deviceType) {
 
 // Load a phone model into the cache (for side preview rendering with different devices)
 function loadCachedPhoneModel(deviceType) {
+    if (threeJSUnavailable || !isThreeJSInitialized || !threeScene) {
+        return Promise.reject(new Error('3D renderer is unavailable'));
+    }
     if (!deviceConfigs[deviceType]) return Promise.reject('Unknown device type');
 
     // Already loaded or loading
@@ -567,6 +582,11 @@ function loadCachedPhoneModel(deviceType) {
         loader.load(
             config.modelPath,
             (gltf) => {
+                if (threeJSUnavailable || !threeScene) {
+                    phoneModelCache[deviceType] = { loading: false, loaded: false };
+                    reject(new Error('3D renderer became unavailable'));
+                    return;
+                }
                 const model = gltf.scene;
 
                 // Center and scale the model
