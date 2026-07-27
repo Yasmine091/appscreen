@@ -6928,6 +6928,15 @@ function getCanvasDimensions() {
     return deviceDimensions[state.outputDevice];
 }
 
+function getPreviewScale(dims) {
+    const canvasArea = document.querySelector('.canvas-area');
+    const availableWidth = Math.max(220, (canvasArea?.clientWidth || 480) - 48);
+    // Adjacent previews overlap behind the selected canvas, leaving useful,
+    // clickable peeks without making the selected screenshot too small.
+    const maxPreviewWidth = Math.min(400, availableWidth / 1.55);
+    return Math.min(maxPreviewWidth / dims.width, 700 / dims.height);
+}
+
 function updateCanvas() {
     saveState(); // Persist state on every update
     const dims = getCanvasDimensions();
@@ -6935,9 +6944,7 @@ function updateCanvas() {
     canvas.height = dims.height;
 
     // Scale for preview
-    const maxPreviewWidth = 400;
-    const maxPreviewHeight = 700;
-    const scale = Math.min(maxPreviewWidth / dims.width, maxPreviewHeight / dims.height);
+    const scale = getPreviewScale(dims);
     canvas.style.width = (dims.width * scale) + 'px';
     canvas.style.height = (dims.height * scale) + 'px';
 
@@ -6958,14 +6965,28 @@ function updateCanvas() {
         const img = screenshot ? getScreenshotImage(screenshot) : null;
         const ss = getScreenshotSettings();
         const use3D = ss.use3D || false;
-        if (use3D && img && typeof renderThreeJSToCanvas === 'function' && phoneModelLoaded) {
-            // In 3D mode, update the screen texture and render the phone model
-            if (typeof updateScreenTexture === 'function') {
+        let rendered3D = false;
+        if (use3D && img) {
+            if (typeof showThreeJS === 'function') {
+                showThreeJS(true);
+            }
+            const desiredDevice = ss.device3D || 'iphone';
+            if (typeof switchPhoneModel === 'function' &&
+                typeof currentDeviceModel !== 'undefined' &&
+                desiredDevice !== currentDeviceModel) {
+                switchPhoneModel(desiredDevice);
+            }
+            if (typeof updateScreenTexture === 'function' &&
+                typeof phoneModelLoaded !== 'undefined' && phoneModelLoaded) {
                 updateScreenTexture();
             }
-            renderThreeJSToCanvas(canvas, dims.width, dims.height);
-        } else if (!use3D) {
-            // In 2D mode, draw the screenshot normally
+            if (typeof renderThreeJSToCanvas === 'function') {
+                rendered3D = renderThreeJSToCanvas(canvas, dims.width, dims.height) === true;
+            }
+        }
+        if (!use3D || !rendered3D) {
+            // Keep the editor usable while a model loads or if WebGL/CDN/GLB
+            // loading fails. The model callback refreshes this automatically.
             drawScreenshot();
         }
     }
@@ -6989,9 +7010,7 @@ function updateCanvas() {
 function updateSidePreviews() {
     const dims = getCanvasDimensions();
     // Same scale as main preview
-    const maxPreviewWidth = 400;
-    const maxPreviewHeight = 700;
-    const previewScale = Math.min(maxPreviewWidth / dims.width, maxPreviewHeight / dims.height);
+    const previewScale = getPreviewScale(dims);
 
     // Initialize Three.js if any screenshot uses 3D mode (needed for side previews)
     const any3D = state.screenshots.some(s => s.screenshot?.use3D);
@@ -7011,11 +7030,11 @@ function updateSidePreviews() {
         }
     }
 
-    // Calculate main canvas display width and position side previews with 10px gap
+    // Overlap adjacent previews behind the selected screenshot so they stay
+    // visible in the narrow editor column at the app's minimum window width.
     const mainCanvasWidth = dims.width * previewScale;
-    const gap = 10;
-    const sideOffset = mainCanvasWidth / 2 + gap;
-    const farSideOffset = sideOffset + mainCanvasWidth + gap;
+    const sideOffset = mainCanvasWidth * 0.36;
+    const farSideOffset = mainCanvasWidth * 0.56;
 
     // Previous screenshot (left, index - 1)
     const prevIndex = state.selectedIndex - 1;
@@ -7079,10 +7098,8 @@ function slideToScreenshot(newIndex, direction) {
     previewStrip.classList.add('sliding');
 
     const dims = getCanvasDimensions();
-    const maxPreviewWidth = 400;
-    const maxPreviewHeight = 700;
-    const previewScale = Math.min(maxPreviewWidth / dims.width, maxPreviewHeight / dims.height);
-    const slideDistance = dims.width * previewScale + 10; // canvas width + gap
+    const previewScale = getPreviewScale(dims);
+    const slideDistance = dims.width * previewScale * 0.36;
 
     const newPrevIndex = newIndex - 1;
     const newNextIndex = newIndex + 1;
@@ -7208,9 +7225,12 @@ function renderScreenshotToCanvas(index, targetCanvas, targetCtx, dims, previewS
     const use3D = settings.use3D || false;
 
     if (img) {
-        if (use3D && typeof renderThreeJSForScreenshot === 'function' && phoneModelLoaded) {
+        if (use3D && typeof renderThreeJSForScreenshot === 'function') {
             // Render 3D phone model for this specific screenshot
-            renderThreeJSForScreenshot(targetCanvas, dims.width, dims.height, index);
+            const rendered3D = renderThreeJSForScreenshot(targetCanvas, dims.width, dims.height, index);
+            if (!rendered3D) {
+                drawScreenshotToContext(targetCtx, dims, img, settings);
+            }
         } else {
             // Draw 2D screenshot using localized image
             drawScreenshotToContext(targetCtx, dims, img, settings);

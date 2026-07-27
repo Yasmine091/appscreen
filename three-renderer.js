@@ -169,6 +169,10 @@ function initThreeJS() {
 
     const container = document.getElementById('threejs-container');
     if (!container) return;
+    if (typeof THREE === 'undefined' || typeof THREE.GLTFLoader !== 'function') {
+        console.error('Three.js or GLTFLoader is unavailable; using the 2D preview fallback.');
+        return;
+    }
 
     // Create scene with a gradient background color (we'll update this dynamically)
     threeScene = new THREE.Scene();
@@ -370,7 +374,12 @@ function loadPhoneModel() {
             console.log('Loading phone model... ' + percent + '%');
         },
         (error) => {
+            phoneModelLoading = false;
+            phoneModelLoaded = false;
             console.error('Error loading phone model:', error);
+            if (typeof updateCanvas === 'function') {
+                updateCanvas();
+            }
         }
     );
 }
@@ -389,7 +398,7 @@ function switchPhoneModel(deviceType) {
 
     // Update current device type
     currentDeviceModel = deviceType;
-    phoneModelLoading = false; // Reset so we can load the new one
+    phoneModelLoading = true;
 
     // Remove current pivot (which contains the model) from scene
     if (phonePivot && threeScene) {
@@ -424,6 +433,7 @@ function switchPhoneModel(deviceType) {
     loader.load(
         config.modelPath,
         (gltf) => {
+            phoneModelLoading = false;
             phoneModel = gltf.scene;
 
             // Center and scale the model
@@ -486,7 +496,12 @@ function switchPhoneModel(deviceType) {
             console.log('Loading ' + deviceType + ' model... ' + percent + '%');
         },
         (error) => {
+            phoneModelLoading = false;
+            phoneModelLoaded = false;
             console.error('Error loading ' + deviceType + ' model:', error);
+            if (typeof updateCanvas === 'function' && !window.suppressSwitchModelUpdate) {
+                updateCanvas();
+            }
         }
     );
 }
@@ -953,7 +968,7 @@ function animateThreeJS() {
 
 // Render 3D phone only (with transparent background) to be composited
 function renderThreeJSToCanvas(targetCanvas, width, height) {
-    if (!threeRenderer || !threeScene || !threeCamera || !phonePivot) return;
+    if (!threeRenderer || !threeScene || !threeCamera || !phonePivot || !phoneModelLoaded) return false;
 
     const dims = { width: width || 1290, height: height || 2796 };
 
@@ -1025,12 +1040,13 @@ function renderThreeJSToCanvas(targetCanvas, width, height) {
     phonePivot.position.copy(originalPosition);
     phonePivot.scale.copy(originalScale);
     phonePivot.rotation.copy(originalRotation);
+    return true;
 }
 
 // Render 3D for a specific screenshot index (used for side previews)
 function renderThreeJSForScreenshot(targetCanvas, width, height, screenshotIndex) {
-    if (!threeRenderer || !threeScene || !threeCamera) return;
-    if (typeof state === 'undefined' || !state.screenshots[screenshotIndex]) return;
+    if (!threeRenderer || !threeScene || !threeCamera) return false;
+    if (typeof state === 'undefined' || !state.screenshots[screenshotIndex]) return false;
 
     const screenshot = state.screenshots[screenshotIndex];
     const ss = screenshot.screenshot;
@@ -1041,7 +1057,7 @@ function renderThreeJSForScreenshot(targetCanvas, width, height, screenshotIndex
     const config = deviceConfigs[screenshotDeviceType] || deviceConfigs.iphone;
 
     // Check if this screenshot uses the same device as currently active
-    const useCurrentModel = screenshotDeviceType === currentDeviceModel && phonePivot;
+    const useCurrentModel = screenshotDeviceType === currentDeviceModel && phonePivot && phoneModelLoaded;
 
     // Get the model to use (either current or from cache)
     let pivotToUse, screenPlaneToUse;
@@ -1061,7 +1077,7 @@ function renderThreeJSForScreenshot(targetCanvas, width, height, screenshotIndex
                     updateCanvas();
                 }
             });
-            return;
+            return false;
         }
         pivotToUse = cached.pivot;
         screenPlaneToUse = cached.screenPlane;
@@ -1189,6 +1205,7 @@ function renderThreeJSForScreenshot(targetCanvas, width, height, screenshotIndex
             phonePivot.visible = true;
         }
     }
+    return true;
 }
 
 // Show/hide Three.js container
