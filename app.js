@@ -6954,9 +6954,9 @@ function getCanvasDimensions() {
 function getPreviewScale(dims) {
     const canvasArea = document.querySelector('.canvas-area');
     const availableWidth = Math.max(220, (canvasArea?.clientWidth || 480) - 48);
-    // Adjacent previews overlap behind the selected canvas, leaving useful,
-    // clickable peeks without making the selected screenshot too small.
-    const maxPreviewWidth = Math.min(400, availableWidth / 1.55);
+    // Fit one focused canvas plus two smaller adjacent previews without
+    // overlap. The side previews use a 0.68 visual scale in CSS.
+    const maxPreviewWidth = Math.min(400, availableWidth / 2.42);
     return Math.min(maxPreviewWidth / dims.width, 700 / dims.height);
 }
 
@@ -7058,11 +7058,10 @@ function updateSidePreviews() {
         }
     }
 
-    // Overlap adjacent previews behind the selected screenshot so they stay
-    // visible in the narrow editor column at the app's minimum window width.
+    // Keep adjacent previews outside the selected canvas with a real gap.
     const mainCanvasWidth = dims.width * previewScale;
-    const sideOffset = mainCanvasWidth * 0.36;
-    const farSideOffset = mainCanvasWidth * 0.56;
+    const gap = 14;
+    const sideOffset = mainCanvasWidth / 2 + gap;
 
     // Previous screenshot (left, index - 1)
     const prevIndex = state.selectedIndex - 1;
@@ -7082,15 +7081,9 @@ function updateSidePreviews() {
         sidePreviewLeft.classList.add('hidden');
     }
 
-    // Far previous screenshot (far left, index - 2)
-    const farPrevIndex = state.selectedIndex - 2;
-    if (farPrevIndex >= 0 && state.screenshots.length > 2) {
-        sidePreviewFarLeft.classList.remove('hidden');
-        sidePreviewFarLeft.style.right = `calc(50% + ${farSideOffset}px)`;
-        renderScreenshotToCanvas(farPrevIndex, canvasFarLeft, ctxFarLeft, dims, previewScale);
-    } else {
-        sidePreviewFarLeft.classList.add('hidden');
-    }
+    // Keep the workspace calm: distant screenshots remain available in the
+    // screenshot list instead of stacking translucent layers in the canvas.
+    sidePreviewFarLeft.classList.add('hidden');
 
     // Next screenshot (right, index + 1)
     const nextIndex = state.selectedIndex + 1;
@@ -7110,15 +7103,7 @@ function updateSidePreviews() {
         sidePreviewRight.classList.add('hidden');
     }
 
-    // Far next screenshot (far right, index + 2)
-    const farNextIndex = state.selectedIndex + 2;
-    if (farNextIndex < state.screenshots.length && state.screenshots.length > 2) {
-        sidePreviewFarRight.classList.remove('hidden');
-        sidePreviewFarRight.style.left = `calc(50% + ${farSideOffset}px)`;
-        renderScreenshotToCanvas(farNextIndex, canvasFarRight, ctxFarRight, dims, previewScale);
-    } else {
-        sidePreviewFarRight.classList.add('hidden');
-    }
+    sidePreviewFarRight.classList.add('hidden');
 }
 
 function slideToScreenshot(newIndex, direction) {
@@ -7127,7 +7112,7 @@ function slideToScreenshot(newIndex, direction) {
 
     const dims = getCanvasDimensions();
     const previewScale = getPreviewScale(dims);
-    const slideDistance = dims.width * previewScale * 0.36;
+    const slideDistance = dims.width * previewScale * 0.68 + 14;
 
     const newPrevIndex = newIndex - 1;
     const newNextIndex = newIndex + 1;

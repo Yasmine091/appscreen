@@ -901,8 +901,8 @@ input[type="range"]::-webkit-slider-thumb {
 .side-preview {
     position: absolute;
     top: 50%;
-    transform: translateY(-50%) scale(0.82);
-    opacity: 0.72;
+    transform: translateY(-50%) scale(0.68);
+    opacity: 0.82;
     transition: opacity 0.3s, transform 0.3s, left 0.3s ease-out, right 0.3s ease-out;
     cursor: pointer;
     border-radius: 8px;
@@ -924,8 +924,7 @@ input[type="range"]::-webkit-slider-thumb {
 
 .side-preview-far-left,
 .side-preview-far-right {
-    transform: translateY(-50%) scale(0.68);
-    opacity: 0.42;
+    display: none;
 }
 
 .side-preview-left canvas,
@@ -935,7 +934,7 @@ input[type="range"]::-webkit-slider-thumb {
 
 .side-preview:hover {
     opacity: 1;
-    transform: translateY(-50%) scale(0.86);
+    transform: translateY(-50%) scale(0.72);
 }
 
 .side-preview.hidden {
