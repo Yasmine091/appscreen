@@ -1556,7 +1556,7 @@ function initSync() {
 
 // Save state to IndexedDB for current project
 function saveState() {
-    if (!db) return;
+    if (!db) return Promise.resolve(false);
 
     // Convert screenshots to base64 for storage, including per-screenshot settings and localized images
     const screenshotsToSave = state.screenshots.map(s => {
@@ -1614,13 +1614,25 @@ function saveState() {
         saveProjectsMeta();
     }
 
-    try {
-        const transaction = db.transaction([PROJECTS_STORE], 'readwrite');
-        const store = transaction.objectStore(PROJECTS_STORE);
-        store.put(stateToSave);
-    } catch (e) {
-        console.error('Error saving state:', e);
-    }
+    return new Promise((resolve) => {
+        try {
+            const transaction = db.transaction([PROJECTS_STORE], 'readwrite');
+            const store = transaction.objectStore(PROJECTS_STORE);
+            store.put(stateToSave);
+            transaction.oncomplete = () => resolve(true);
+            transaction.onerror = () => {
+                console.error('Error saving state:', transaction.error);
+                resolve(false);
+            };
+            transaction.onabort = () => {
+                console.error('State save aborted:', transaction.error);
+                resolve(false);
+            };
+        } catch (e) {
+            console.error('Error saving state:', e);
+            resolve(false);
+        }
+    });
 }
 
 // Migrate 3D positions from old formula to new formula
@@ -3877,6 +3889,15 @@ function setupEventListeners() {
     document.getElementById('export-project-btn').addEventListener('click', async () => {
         if (!db) return;
         try {
+            // Canvas updates persist asynchronously. Wait for a fresh snapshot of
+            // the live project before reading IndexedDB, otherwise a backup can
+            // contain an older/partial 3D screen (missing texture, text, elements,
+            // or newer status-bar/camera settings).
+            const saved = await saveState();
+            if (!saved) {
+                throw new Error('Could not save the current project before export');
+            }
+
             const dump = {};
             for (const name of db.objectStoreNames) {
                 const tx = db.transaction(name, 'readonly');
