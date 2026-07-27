@@ -684,24 +684,32 @@ function sampleTopColor(image, bandHeightPx) {
 }
 
 function getStatusForegroundColor(image) {
-    const canvas = document.createElement('canvas');
-    canvas.width = image.width;
-    canvas.height = image.height;
-    const ctx = canvas.getContext('2d', { willReadFrequently: true });
-    ctx.drawImage(image, 0, 0);
-    const h = Math.max(1, Math.round(image.height * 0.06));
-    const data = ctx.getImageData(0, 0, image.width, h).data;
-    let sum = 0;
-    let count = 0;
-    for (let i = 0; i < data.length; i += 4) {
-        const a = data[i + 3];
-        if (a < 16) continue;
-        const luminance = 0.2126 * data[i] + 0.7152 * data[i + 1] + 0.0722 * data[i + 2];
-        sum += luminance;
-        count++;
+    try {
+        const canvas = document.createElement('canvas');
+        canvas.width = image.width;
+        canvas.height = image.height;
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+        ctx.drawImage(image, 0, 0);
+        const h = Math.max(1, Math.round(image.height * 0.06));
+        const data = ctx.getImageData(0, 0, image.width, h).data;
+        let sum = 0;
+        let count = 0;
+        for (let i = 0; i < data.length; i += 4) {
+            const a = data[i + 3];
+            if (a < 16) continue;
+            const luminance = 0.2126 * data[i] + 0.7152 * data[i + 1] + 0.0722 * data[i + 2];
+            sum += luminance;
+            count++;
+        }
+        const avg = count ? sum / count : 255;
+        return avg < 145 ? '#f8f8f8' : '#101214';
+    } catch (error) {
+        // Restored projects can contain image URLs whose pixels are not readable
+        // because of browser origin rules. Status-bar styling must never prevent
+        // the screenshot or the rest of the composition from rendering.
+        console.warn('Could not sample screenshot color; using dark status icons.', error);
+        return '#101214';
     }
-    const avg = count ? sum / count : 255;
-    return avg < 145 ? '#f8f8f8' : '#101214';
 }
 
 
@@ -873,15 +881,15 @@ function createRoundedScreenImage(image, cornerRadius, deviceType, screenshotSet
 
 // Update the screen texture with current screenshot
 function updateScreenTexture() {
-    if (!phoneModel) return;
-    if (typeof state === 'undefined' || !state.screenshots.length) return;
+    if (!phoneModel) return false;
+    if (typeof state === 'undefined' || !state.screenshots.length) return false;
 
     const screenshot = state.screenshots[state.selectedIndex];
     // Use getScreenshotImage() for localized image support
     const screenshotImage = typeof getScreenshotImage === 'function'
         ? getScreenshotImage(screenshot)
         : screenshot?.image;
-    if (!screenshot || !screenshotImage) return;
+    if (!screenshot || !screenshotImage) return false;
 
     // Create texture from screenshot
     if (screenTexture) {
@@ -891,7 +899,13 @@ function updateScreenTexture() {
     // Create rounded corner version of the image using device-specific corner radius
     const config = deviceConfigs[currentDeviceModel] || deviceConfigs.iphone;
     const cornerRadius = Math.round(screenshotImage.width * config.cornerRadiusFactor);
-    const roundedImage = createRoundedScreenImage(screenshotImage, cornerRadius, currentDeviceModel, screenshot.screenshot);
+    let roundedImage;
+    try {
+        roundedImage = createRoundedScreenImage(screenshotImage, cornerRadius, currentDeviceModel, screenshot.screenshot);
+    } catch (error) {
+        console.error('Could not create the 3D screen texture:', error);
+        return false;
+    }
 
     screenTexture = new THREE.Texture(roundedImage);
     screenTexture.needsUpdate = true;
@@ -915,6 +929,7 @@ function updateScreenTexture() {
 
     // Trigger render update
     requestThreeJSRender();
+    return true;
 }
 
 // Set 3D rotation from sliders (in degrees)

@@ -6988,21 +6988,26 @@ function updateCanvas() {
         const use3D = ss.use3D || false;
         let rendered3D = false;
         if (use3D && img) {
-            if (typeof showThreeJS === 'function') {
-                showThreeJS(true);
-            }
-            const desiredDevice = ss.device3D || 'iphone';
-            if (typeof switchPhoneModel === 'function' &&
-                typeof currentDeviceModel !== 'undefined' &&
-                desiredDevice !== currentDeviceModel) {
-                switchPhoneModel(desiredDevice);
-            }
-            if (typeof updateScreenTexture === 'function' &&
-                typeof phoneModelLoaded !== 'undefined' && phoneModelLoaded) {
-                updateScreenTexture();
-            }
-            if (typeof renderThreeJSToCanvas === 'function') {
-                rendered3D = renderThreeJSToCanvas(canvas, dims.width, dims.height) === true;
+            try {
+                if (typeof showThreeJS === 'function') {
+                    showThreeJS(true);
+                }
+                const desiredDevice = ss.device3D || 'iphone';
+                if (typeof switchPhoneModel === 'function' &&
+                    typeof currentDeviceModel !== 'undefined' &&
+                    desiredDevice !== currentDeviceModel) {
+                    switchPhoneModel(desiredDevice);
+                }
+                let textureReady = true;
+                if (typeof updateScreenTexture === 'function' &&
+                    typeof phoneModelLoaded !== 'undefined' && phoneModelLoaded) {
+                    textureReady = updateScreenTexture() !== false;
+                }
+                if (textureReady && typeof renderThreeJSToCanvas === 'function') {
+                    rendered3D = renderThreeJSToCanvas(canvas, dims.width, dims.height) === true;
+                }
+            } catch (error) {
+                console.error('3D preview failed; using the 2D fallback.', error);
             }
         }
         if (!use3D || !rendered3D) {
@@ -7248,7 +7253,12 @@ function renderScreenshotToCanvas(index, targetCanvas, targetCtx, dims, previewS
     if (img) {
         if (use3D && typeof renderThreeJSForScreenshot === 'function') {
             // Render 3D phone model for this specific screenshot
-            const rendered3D = renderThreeJSForScreenshot(targetCanvas, dims.width, dims.height, index);
+            let rendered3D = false;
+            try {
+                rendered3D = renderThreeJSForScreenshot(targetCanvas, dims.width, dims.height, index) === true;
+            } catch (error) {
+                console.error('3D side preview failed; using the 2D fallback.', error);
+            }
             if (!rendered3D) {
                 drawScreenshotToContext(targetCtx, dims, img, settings);
             }
