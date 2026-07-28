@@ -4,6 +4,7 @@ const state = {
     selectedIndex: 0,
     transferTarget: null, // Index of screenshot waiting to receive style transfer
     outputDevice: 'iphone-6.9',
+    exportFormat: 'jpeg',
     currentLanguage: 'en', // Global current language for all text
     projectLanguages: ['en'], // Languages available in this project
     customWidth: 1290,
@@ -1600,6 +1601,7 @@ function saveState() {
         screenshots: screenshotsToSave,
         selectedIndex: state.selectedIndex,
         outputDevice: state.outputDevice,
+        exportFormat: state.exportFormat,
         customWidth: state.customWidth,
         customHeight: state.customHeight,
         currentLanguage: state.currentLanguage,
@@ -1874,6 +1876,7 @@ function loadState() {
 
                     state.selectedIndex = parsed.selectedIndex || 0;
                     state.outputDevice = parsed.outputDevice || 'iphone-6.9';
+                    state.exportFormat = parsed.exportFormat === 'png' ? 'png' : 'jpeg';
                     state.customWidth = parsed.customWidth || 1320;
                     state.customHeight = parsed.customHeight || 2868;
 
@@ -1941,6 +1944,7 @@ function resetStateToDefaults() {
     state.screenshots = [];
     state.selectedIndex = 0;
     state.outputDevice = 'iphone-6.9';
+    state.exportFormat = 'jpeg';
     state.customWidth = 1320;
     state.customHeight = 2868;
     state.currentLanguage = 'en';
@@ -2252,6 +2256,8 @@ function syncUIWithState() {
     customInputs.classList.toggle('visible', state.outputDevice === 'custom');
     document.getElementById('custom-width').value = state.customWidth;
     document.getElementById('custom-height').value = state.customHeight;
+    const exportFormat = document.getElementById('export-format');
+    if (exportFormat) exportFormat.value = state.exportFormat;
 
     // Get current screenshot's settings
     const bg = getBackground();
@@ -4720,6 +4726,10 @@ function setupEventListeners() {
     });
 
     // Export buttons
+    document.getElementById('export-format').addEventListener('change', (e) => {
+        state.exportFormat = e.target.value === 'png' ? 'png' : 'jpeg';
+        saveState();
+    });
     document.getElementById('export-current').addEventListener('click', exportCurrent);
     document.getElementById('export-all').addEventListener('click', exportAll);
 
@@ -8334,9 +8344,36 @@ async function exportCurrent() {
     updateCanvas();
 
     const link = document.createElement('a');
-    link.download = `screenshot-${state.selectedIndex + 1}.png`;
-    link.href = canvas.toDataURL('image/png');
+    const exportFile = createExportFile(canvas);
+    link.download = `screenshot-${state.selectedIndex + 1}.${exportFile.extension}`;
+    link.href = exportFile.dataUrl;
     link.click();
+}
+
+function createExportFile(sourceCanvas) {
+    if (state.exportFormat === 'png') {
+        return {
+            extension: 'png',
+            dataUrl: sourceCanvas.toDataURL('image/png')
+        };
+    }
+
+    const opaqueCanvas = document.createElement('canvas');
+    opaqueCanvas.width = sourceCanvas.width;
+    opaqueCanvas.height = sourceCanvas.height;
+    const opaqueContext = opaqueCanvas.getContext('2d', {
+        alpha: false,
+        colorSpace: 'srgb'
+    });
+
+    opaqueContext.fillStyle = '#ffffff';
+    opaqueContext.fillRect(0, 0, opaqueCanvas.width, opaqueCanvas.height);
+    opaqueContext.drawImage(sourceCanvas, 0, 0);
+
+    return {
+        extension: 'jpg',
+        dataUrl: opaqueCanvas.toDataURL('image/jpeg', 0.98)
+    };
 }
 
 async function exportAll() {
@@ -8416,11 +8453,10 @@ async function exportAllForLanguage(lang) {
 
         await new Promise(resolve => setTimeout(resolve, 100));
 
-        // Get canvas data as base64, strip the data URL prefix
-        const dataUrl = canvas.toDataURL('image/png');
-        const base64Data = dataUrl.replace(/^data:image\/png;base64,/, '');
+        const exportFile = createExportFile(canvas);
+        const base64Data = exportFile.dataUrl.replace(/^data:image\/(?:png|jpeg);base64,/, '');
 
-        zip.file(`screenshot-${i + 1}.png`, base64Data, { base64: true });
+        zip.file(`screenshot-${i + 1}.${exportFile.extension}`, base64Data, { base64: true });
     }
 
     // Restore original settings
@@ -8488,12 +8524,11 @@ async function exportAllLanguages() {
 
             await new Promise(resolve => setTimeout(resolve, 100));
 
-            // Get canvas data as base64, strip the data URL prefix
-            const dataUrl = canvas.toDataURL('image/png');
-            const base64Data = dataUrl.replace(/^data:image\/png;base64,/, '');
+            const exportFile = createExportFile(canvas);
+            const base64Data = exportFile.dataUrl.replace(/^data:image\/(?:png|jpeg);base64,/, '');
 
             // Use language code as folder name
-            zip.file(`${lang}/screenshot-${i + 1}.png`, base64Data, { base64: true });
+            zip.file(`${lang}/screenshot-${i + 1}.${exportFile.extension}`, base64Data, { base64: true });
         }
     }
 

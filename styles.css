@@ -1110,6 +1110,32 @@ input[type="range"]::-webkit-slider-thumb {
     align-items: stretch;
 }
 
+.export-format-control {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--text-secondary);
+    font-size: 11px;
+    font-weight: 500;
+}
+
+.export-format-control select {
+    flex: 1;
+    min-width: 0;
+    padding: 7px 9px;
+    border: 1px solid var(--border-color);
+    border-radius: 7px;
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+    font-size: 11px;
+    cursor: pointer;
+}
+
+.export-format-control select:focus {
+    outline: none;
+    border-color: var(--accent);
+}
+
 .output-size-dropdown {
     flex: 1;
     position: relative;
