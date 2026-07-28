@@ -1386,6 +1386,9 @@ let suppressSwitchModelUpdate = false;  // Flag to suppress updateCanvas from sw
 const fileInput = document.getElementById('file-input');
 const screenshotList = document.getElementById('screenshot-list');
 const noScreenshot = document.getElementById('no-screenshot');
+const screenOverview = document.getElementById('screen-overview');
+const screenOverviewTrack = document.getElementById('screen-overview-track');
+const screenOverviewCount = document.getElementById('screen-overview-count');
 
 // IndexedDB for larger storage (can store hundreds of MB vs localStorage's 5-10MB)
 let db = null;
@@ -6376,6 +6379,58 @@ function createNewScreenshot(img, src, name, lang, deviceType) {
 
 let draggedScreenshotIndex = null;
 
+function updateScreenOverview() {
+    if (!screenOverview || !screenOverviewTrack || !screenOverviewCount) return;
+
+    const count = state.screenshots.length;
+    screenOverview.hidden = count < 2;
+    screenOverviewCount.textContent = `${count} screens`;
+    screenOverviewTrack.innerHTML = '';
+
+    state.screenshots.forEach((screenshot, index) => {
+        const item = document.createElement('button');
+        const image = getScreenshotImage(screenshot);
+        item.type = 'button';
+        item.className = `screen-overview-item${index === state.selectedIndex ? ' selected' : ''}`;
+        item.dataset.index = index;
+        item.setAttribute('role', 'option');
+        item.setAttribute('aria-selected', index === state.selectedIndex ? 'true' : 'false');
+        item.title = `${index + 1}. ${screenshot.name || 'Blank Screen'}`;
+
+        if (image?.src) {
+            const thumb = document.createElement('img');
+            thumb.src = image.src;
+            thumb.alt = '';
+            item.appendChild(thumb);
+        } else {
+            const blank = document.createElement('span');
+            blank.className = 'screen-overview-blank';
+            blank.textContent = '□';
+            item.appendChild(blank);
+        }
+
+        const order = document.createElement('span');
+        order.className = 'screen-overview-index';
+        order.textContent = index + 1;
+        item.appendChild(order);
+
+        item.addEventListener('click', () => {
+            if (index === state.selectedIndex || isSliding) return;
+            slideToScreenshot(index, index > state.selectedIndex ? 'right' : 'left');
+        });
+
+        screenOverviewTrack.appendChild(item);
+    });
+
+    requestAnimationFrame(() => {
+        screenOverviewTrack.querySelector('.selected')?.scrollIntoView({
+            behavior: 'smooth',
+            block: 'nearest',
+            inline: 'nearest'
+        });
+    });
+}
+
 function updateScreenshotList() {
     screenshotList.innerHTML = '';
     const isEmpty = state.screenshots.length === 0;
@@ -6388,6 +6443,7 @@ function updateScreenshotList() {
     const exportAll = document.getElementById('export-all');
     if (exportCurrent) { exportCurrent.disabled = isEmpty; exportCurrent.style.opacity = isEmpty ? '0.4' : ''; exportCurrent.style.pointerEvents = isEmpty ? 'none' : ''; }
     if (exportAll) { exportAll.disabled = isEmpty; exportAll.style.opacity = isEmpty ? '0.4' : ''; exportAll.style.pointerEvents = isEmpty ? 'none' : ''; }
+    updateScreenOverview();
 
     // Show transfer mode hint if active
     if (state.transferTarget !== null && state.screenshots.length > 1) {
