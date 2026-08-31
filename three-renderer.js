@@ -60,8 +60,8 @@ const deviceConfigs = {
         cornerRadiusFactor: 0.06,
         // The downloaded iPad asset is authored in landscape; rotate the
         // complete device into the portrait orientation used by screenshots.
-        modelRotation: { x: 0, y: 0, z: 90 },
-        textureQuarterTurn: -1,
+        modelRotation: { x: 0, y: 0, z: -90 },
+        textureQuarterTurn: 1,
         cameraMeshNames: ['front_camera']
     },
     'android-tablet': {
