@@ -61,7 +61,7 @@ const deviceConfigs = {
         // The downloaded iPad asset is authored in landscape; rotate the
         // complete device into the portrait orientation used by screenshots.
         modelRotation: { x: 0, y: 0, z: -90 },
-        textureQuarterTurn: 1,
+        textureQuarterTurn: -1,
         cameraMeshNames: ['front_camera']
     },
     'android-tablet': {
@@ -175,6 +175,23 @@ function syncDeviceChromeVisibility(model, deviceType, screenshotSettings) {
             child.visible = showCamera;
         }
     });
+}
+
+function findNativeScreenMesh(model) {
+    let exactMatch = null;
+    let screenMatch = null;
+    model.traverse((child) => {
+        if (!child.isMesh) return;
+        const name = (child.name || '').toLowerCase();
+        const material = (child.material?.name || '').toLowerCase();
+        if (!screenMatch && (name.includes('screen') || material.includes('screen'))) {
+            screenMatch = child;
+        }
+        if (!exactMatch && (name === 'screen' || material === 'screen')) {
+            exactMatch = child;
+        }
+    });
+    return exactMatch || screenMatch;
 }
 
 // Apply a frame color preset to the phone model
@@ -363,10 +380,15 @@ function loadPhoneModel() {
                 return;
             }
             phoneModel = gltf.scene;
+            if (config.useScreenMesh) {
+                screenMesh = findNativeScreenMesh(phoneModel);
+            }
 
             // Center and scale the model
             const box = new THREE.Box3().setFromObject(phoneModel);
-            const center = box.getCenter(new THREE.Vector3());
+            const center = screenMesh
+                ? new THREE.Box3().setFromObject(screenMesh).getCenter(new THREE.Vector3())
+                : box.getCenter(new THREE.Vector3());
             const size = box.getSize(new THREE.Vector3());
 
             // Center the model
@@ -430,15 +452,6 @@ function loadPhoneModel() {
                 glassMeshes.sort((a, b) => b.area - a.area);
                 screenMesh = glassMeshes[0].mesh;
                 console.log('  -> Using largest glass mesh as screen:', screenMesh.name);
-            }
-
-            if (config.useScreenMesh && !screenMesh) {
-                phoneModel.traverse((child) => {
-                    if (child.isMesh && ((child.name || '').toLowerCase().includes('screen') ||
-                        (child.material?.name || '').toLowerCase().includes('screen'))) {
-                        screenMesh = child;
-                    }
-                });
             }
 
             // Create a pivot group for rotation around screen center
@@ -562,17 +575,14 @@ function switchPhoneModel(deviceType) {
             phoneModel = gltf.scene;
 
             if (config.useScreenMesh) {
-                phoneModel.traverse((child) => {
-                    if (child.isMesh && ((child.name || '').toLowerCase().includes('screen') ||
-                        (child.material?.name || '').toLowerCase().includes('screen'))) {
-                        screenMesh = child;
-                    }
-                });
+                screenMesh = findNativeScreenMesh(phoneModel);
             }
 
             // Center and scale the model
             const box = new THREE.Box3().setFromObject(phoneModel);
-            const center = box.getCenter(new THREE.Vector3());
+            const center = screenMesh
+                ? new THREE.Box3().setFromObject(screenMesh).getCenter(new THREE.Vector3())
+                : box.getCenter(new THREE.Vector3());
             const size = box.getSize(new THREE.Vector3());
 
             phoneModel.position.sub(center);
@@ -675,10 +685,15 @@ function loadCachedPhoneModel(deviceType) {
                     return;
                 }
                 const model = gltf.scene;
+                const nativeScreenPlane = config.useScreenMesh
+                    ? findNativeScreenMesh(model)
+                    : null;
 
                 // Center and scale the model
                 const box = new THREE.Box3().setFromObject(model);
-                const center = box.getCenter(new THREE.Vector3());
+                const center = nativeScreenPlane
+                    ? new THREE.Box3().setFromObject(nativeScreenPlane).getCenter(new THREE.Vector3())
+                    : box.getCenter(new THREE.Vector3());
                 const size = box.getSize(new THREE.Vector3());
 
                 model.position.sub(center);
@@ -704,15 +719,7 @@ function loadCachedPhoneModel(deviceType) {
                 // Prefer the authentic model's own screen mesh so its exact
                 // aspect ratio, rounded corners, and camera geometry remain
                 // intact in adjacent previews too.
-                let screenPlane = null;
-                if (config.useScreenMesh) {
-                    model.traverse((child) => {
-                        if (!screenPlane && child.isMesh && ((child.name || '').toLowerCase().includes('screen') ||
-                            (child.material?.name || '').toLowerCase().includes('screen'))) {
-                            screenPlane = child;
-                        }
-                    });
-                }
+                let screenPlane = nativeScreenPlane;
 
                 if (!screenPlane) {
                     const aspectRatio = config.aspectRatio;
