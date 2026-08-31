@@ -58,7 +58,10 @@ const deviceConfigs = {
         useScreenMesh: true,
         positionOffsetFactor: 0.5,
         cornerRadiusFactor: 0.06,
-        modelRotation: { x: 0, y: 0, z: 90 }
+        // The downloaded iPad asset is authored in landscape; rotate the
+        // complete device into the portrait orientation used by screenshots.
+        modelRotation: { x: 0, y: 0, z: 90 },
+        textureQuarterTurn: -1
     },
     'android-tablet': {
         modelPath: 'models/galaxy-tab-s8-ultra.glb',
@@ -68,7 +71,10 @@ const deviceConfigs = {
         useScreenMesh: true,
         positionOffsetFactor: 0.5,
         cornerRadiusFactor: 0.045,
-        modelRotation: { x: 0, y: 0, z: 0 }
+        // The downloaded Galaxy Tab asset is landscape and was facing away
+        // from the camera. Rotate it to portrait and turn it front-facing.
+        modelRotation: { x: 0, y: 180, z: 90 },
+        textureQuarterTurn: -1
     }
 };
 
@@ -392,7 +398,7 @@ function loadPhoneModel() {
             });
 
             // Use the largest glass mesh (front screen glass)
-            if (glassMeshes.length > 0) {
+            if (glassMeshes.length > 0 && (!config.useScreenMesh || !screenMesh)) {
                 glassMeshes.sort((a, b) => b.area - a.area);
                 screenMesh = glassMeshes[0].mesh;
                 console.log('  -> Using largest glass mesh as screen:', screenMesh.name);
@@ -1012,6 +1018,24 @@ function createRoundedScreenImage(image, cornerRadius, deviceType, screenshotSet
     return canvas;
 }
 
+// Tablet GLBs are authored in landscape while the app supplies portrait
+// screenshots. Rotate the texture canvas to the model's local UV orientation
+// so the image keeps its aspect ratio and becomes upright after the device's
+// portrait model rotation. This rotates pixels; it never stretches them.
+function prepareScreenTextureCanvas(canvas, deviceType) {
+    const quarterTurns = deviceConfigs[deviceType]?.textureQuarterTurn || 0;
+    if (!quarterTurns || Math.abs(quarterTurns) % 4 === 0) return canvas;
+
+    const rotated = document.createElement('canvas');
+    rotated.width = canvas.height;
+    rotated.height = canvas.width;
+    const ctx = rotated.getContext('2d');
+    ctx.translate(rotated.width / 2, rotated.height / 2);
+    ctx.rotate(quarterTurns * Math.PI / 2);
+    ctx.drawImage(canvas, -canvas.width / 2, -canvas.height / 2);
+    return rotated;
+}
+
 // Update the screen texture with current screenshot
 function updateScreenTexture() {
     if (!phoneModel) return false;
@@ -1040,6 +1064,7 @@ function updateScreenTexture() {
         return false;
     }
 
+    roundedImage = prepareScreenTextureCanvas(roundedImage, currentDeviceModel);
     screenTexture = new THREE.Texture(roundedImage);
     screenTexture.needsUpdate = true;
     screenTexture.encoding = THREE.sRGBEncoding;
@@ -1253,7 +1278,8 @@ function renderThreeJSForScreenshot(targetCanvas, width, height, screenshotIndex
     const oldMaterial = screenPlaneToUse ? screenPlaneToUse.material : null;
     if (screenshotImage && screenPlaneToUse) {
         const cornerRadius = Math.round(screenshotImage.width * config.cornerRadiusFactor);
-        const roundedImage = createRoundedScreenImage(screenshotImage, cornerRadius, screenshotDeviceType, ss);
+        let roundedImage = createRoundedScreenImage(screenshotImage, cornerRadius, screenshotDeviceType, ss);
+        roundedImage = prepareScreenTextureCanvas(roundedImage, screenshotDeviceType);
         const newTexture = new THREE.Texture(roundedImage);
         newTexture.needsUpdate = true;
         newTexture.encoding = THREE.sRGBEncoding;
