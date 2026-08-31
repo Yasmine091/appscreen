@@ -61,7 +61,8 @@ const deviceConfigs = {
         // The downloaded iPad asset is authored in landscape; rotate the
         // complete device into the portrait orientation used by screenshots.
         modelRotation: { x: 0, y: 0, z: 90 },
-        textureQuarterTurn: -1
+        textureQuarterTurn: -1,
+        cameraMeshNames: ['front_camera']
     },
     'android-tablet': {
         modelPath: 'models/galaxy-tab-s8-ultra.glb',
@@ -74,7 +75,9 @@ const deviceConfigs = {
         // The downloaded Galaxy Tab asset is landscape and was facing away
         // from the camera. Rotate it to portrait and turn it front-facing.
         modelRotation: { x: 0, y: 180, z: 90 },
-        textureQuarterTurn: -1
+        textureQuarterTurn: -1,
+        cameraMeshNames: ['camera'],
+        hiddenMeshNames: ['penbody', 'pentip', 'pencharge']
     }
 };
 
@@ -120,8 +123,8 @@ var frameColorPresets = {
         { id: 'silver', label: 'Apple Silver', swatch: '#c7c9c8', materials: { case: '#c7c9c8', bezel: '#262626', glass: '#111111' } }
     ],
     'android-tablet': [
-        { id: 'graphite', label: 'Samsung Graphite', swatch: '#4b4f54', materials: { body: '#4b4f54', bezel: '#151515', antenna: '#2d2d2d' } },
-        { id: 'silver', label: 'Samsung Silver', swatch: '#bfc3c7', materials: { body: '#bfc3c7', bezel: '#262626', antenna: '#777777' } }
+        { id: 'graphite', label: 'Samsung Graphite', swatch: '#4b4f54', materials: { material: '#4b4f54', body: '#4b4f54', body2: '#34383d', body3: '#565b61', bezel: '#151515', antenna: '#2d2d2d', camframe: '#25282b', camframe2: '#111111' } },
+        { id: 'silver', label: 'Samsung Silver', swatch: '#bfc3c7', materials: { material: '#bfc3c7', body: '#bfc3c7', body2: '#9da3a8', body3: '#d1d5d8', bezel: '#262626', antenna: '#777777', camframe: '#73787d', camframe2: '#222222' } }
     ]
 };
 
@@ -154,6 +157,26 @@ function tuneFrontCameraMaterials(model) {
     });
 }
 
+function syncDeviceChromeVisibility(model, deviceType, screenshotSettings) {
+    if (!model) return;
+    const config = deviceConfigs[deviceType] || {};
+    const cameraNames = (config.cameraMeshNames || []).map(name => name.toLowerCase());
+    const hiddenNames = (config.hiddenMeshNames || []).map(name => name.toLowerCase());
+    const showCamera = screenshotSettings?.showCameraNotch !== false;
+
+    model.traverse((child) => {
+        const name = (child.name || '').toLowerCase();
+        if (hiddenNames.some(token => name === token || name.startsWith(`${token}_`))) {
+            child.visible = false;
+        }
+        if (cameraNames.some(token => token === 'camera'
+            ? (name === token || name.startsWith(`${token}_`))
+            : name.includes(token))) {
+            child.visible = showCamera;
+        }
+    });
+}
+
 // Apply a frame color preset to the phone model
 function setPhoneFrameColor(presetId, deviceType) {
     if (!phoneModel) return;
@@ -169,7 +192,7 @@ function setPhoneFrameColor(presetId, deviceType) {
         if (child.isMesh && child.material) {
             const matName = (child.material.name || '').toLowerCase();
             const color = preset.materials[matName] || preset.materials.default;
-            if (color && matName !== 'screen') {
+            if (color && !matName.includes('screen') && !matName.includes('wallpaper')) {
                 child.material.color.set(color);
             }
         }
@@ -193,7 +216,7 @@ function setCachedModelFrameColor(presetId, deviceType) {
         if (child.isMesh && child.material) {
             const matName = (child.material.name || '').toLowerCase();
             const color = preset.materials[matName] || preset.materials.default;
-            if (color && matName !== 'screen') {
+            if (color && !matName.includes('screen') && !matName.includes('wallpaper')) {
                 child.material.color.set(color);
             }
         }
@@ -354,6 +377,11 @@ function loadPhoneModel() {
             baseModelScale = 3.75 / maxDim;
             phoneModel.scale.setScalar(baseModelScale);
             tuneFrontCameraMaterials(phoneModel);
+            syncDeviceChromeVisibility(
+                phoneModel,
+                currentDeviceModel,
+                typeof state !== 'undefined' ? state.defaults?.screenshot : null
+            );
 
             // Log all meshes to help identify the screen
             console.log('Phone model meshes:');
@@ -553,6 +581,11 @@ function switchPhoneModel(deviceType) {
             baseModelScale = 3.75 / maxDim;
             phoneModel.scale.setScalar(baseModelScale);
             tuneFrontCameraMaterials(phoneModel);
+            syncDeviceChromeVisibility(
+                phoneModel,
+                currentDeviceModel,
+                typeof state !== 'undefined' ? state.defaults?.screenshot : null
+            );
 
             // Create a pivot group for rotation around screen center
             const screenOffset = config.screenOffset;
@@ -654,6 +687,7 @@ function loadCachedPhoneModel(deviceType) {
                 const modelBaseScale = 3.75 / maxDim;
                 model.scale.setScalar(modelBaseScale);
                 tuneFrontCameraMaterials(model);
+                syncDeviceChromeVisibility(model, deviceType, { showCameraNotch: true });
 
                 // Create pivot for this model
                 const screenOffset = config.screenOffset;
@@ -1048,6 +1082,8 @@ function updateScreenTexture() {
         : screenshot?.image;
     if (!screenshot || !screenshotImage) return false;
 
+    syncDeviceChromeVisibility(phoneModel, currentDeviceModel, screenshot.screenshot);
+
     // Create texture from screenshot
     if (screenTexture) {
         screenTexture.dispose();
@@ -1233,12 +1269,13 @@ function renderThreeJSForScreenshot(targetCanvas, width, height, screenshotIndex
     const useCurrentModel = screenshotDeviceType === currentDeviceModel && phonePivot && phoneModelLoaded;
 
     // Get the model to use (either current or from cache)
-    let pivotToUse, screenPlaneToUse;
+    let pivotToUse, screenPlaneToUse, modelToUse;
 
     if (useCurrentModel) {
         // Use the currently loaded model
         pivotToUse = phonePivot;
         screenPlaneToUse = customScreenPlane;
+        modelToUse = phoneModel;
     } else {
         // Use cached model for different device
         const cached = phoneModelCache[screenshotDeviceType];
@@ -1254,6 +1291,7 @@ function renderThreeJSForScreenshot(targetCanvas, width, height, screenshotIndex
         }
         pivotToUse = cached.pivot;
         screenPlaneToUse = cached.screenPlane;
+        modelToUse = cached.model;
 
         // Add cached pivot to scene temporarily
         threeScene.add(pivotToUse);
@@ -1276,6 +1314,7 @@ function renderThreeJSForScreenshot(targetCanvas, width, height, screenshotIndex
         ? getScreenshotImage(screenshot)
         : screenshot?.image;
     const oldMaterial = screenPlaneToUse ? screenPlaneToUse.material : null;
+    syncDeviceChromeVisibility(modelToUse, screenshotDeviceType, ss);
     if (screenshotImage && screenPlaneToUse) {
         const cornerRadius = Math.round(screenshotImage.width * config.cornerRadiusFactor);
         let roundedImage = createRoundedScreenImage(screenshotImage, cornerRadius, screenshotDeviceType, ss);
