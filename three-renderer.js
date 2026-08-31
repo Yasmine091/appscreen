@@ -51,21 +51,21 @@ const deviceConfigs = {
         modelRotation: { x: 0, y: 0, z: 0 }  // Adjust to correct model tilt (in degrees)
     },
     ipad: {
-        modelPath: 'models/ipad-pro-tablet.glb',
-        aspectRatio: 0.255 / 0.165,
+        modelPath: 'models/ipad-pro-12.9.glb',
+        aspectRatio: 2048 / 2732,
         screenHeightFactor: 1,
         screenOffset: { x: 0, y: 0, z: 0.026 },
-        planeSize: { width: 0.255, height: 0.165 },
+        useScreenMesh: true,
         positionOffsetFactor: 0.5,
         cornerRadiusFactor: 0.06,
-        modelRotation: { x: 0, y: 0, z: 0 }
+        modelRotation: { x: 0, y: 0, z: 90 }
     },
     'android-tablet': {
-        modelPath: 'models/android-tablet.glb',
-        aspectRatio: 0.19 / 0.265,
+        modelPath: 'models/galaxy-tab-s8-ultra.glb',
+        aspectRatio: 1200 / 1920,
         screenHeightFactor: 1,
         screenOffset: { x: 0, y: 0, z: 0.021 },
-        planeSize: { width: 0.19, height: 0.265 },
+        useScreenMesh: true,
         positionOffsetFactor: 0.5,
         cornerRadiusFactor: 0.045,
         modelRotation: { x: 0, y: 0, z: 0 }
@@ -110,12 +110,12 @@ var frameColorPresets = {
           materials: { back_glass: '#2a2a2a', frame: '#484848', antenna: '#353535' } },
     ],
     ipad: [
-        { id: 'space-gray', label: 'Apple Space Gray', swatch: '#73777b', materials: { default: '#73777b', screen: '#111111' } },
-        { id: 'silver', label: 'Apple Silver', swatch: '#c7c9c8', materials: { default: '#c7c9c8', screen: '#111111' } }
+        { id: 'space-gray', label: 'Apple Space Gray', swatch: '#73777b', materials: { case: '#73777b', bezel: '#1d1d1f', glass: '#111111' } },
+        { id: 'silver', label: 'Apple Silver', swatch: '#c7c9c8', materials: { case: '#c7c9c8', bezel: '#262626', glass: '#111111' } }
     ],
     'android-tablet': [
-        { id: 'graphite', label: 'Samsung Graphite', swatch: '#4b4f54', materials: { default: '#4b4f54', screen: '#111111' } },
-        { id: 'silver', label: 'Samsung Silver', swatch: '#bfc3c7', materials: { default: '#bfc3c7', screen: '#111111' } }
+        { id: 'graphite', label: 'Samsung Graphite', swatch: '#4b4f54', materials: { body: '#4b4f54', bezel: '#151515', antenna: '#2d2d2d' } },
+        { id: 'silver', label: 'Samsung Silver', swatch: '#bfc3c7', materials: { body: '#bfc3c7', bezel: '#262626', antenna: '#777777' } }
     ]
 };
 
@@ -398,6 +398,15 @@ function loadPhoneModel() {
                 console.log('  -> Using largest glass mesh as screen:', screenMesh.name);
             }
 
+            if (config.useScreenMesh && !screenMesh) {
+                phoneModel.traverse((child) => {
+                    if (child.isMesh && ((child.name || '').toLowerCase().includes('screen') ||
+                        (child.material?.name || '').toLowerCase().includes('screen'))) {
+                        screenMesh = child;
+                    }
+                });
+            }
+
             // Create a pivot group for rotation around screen center
             const config = deviceConfigs[currentDeviceModel] || deviceConfigs.iphone;
             const screenOffset = config.screenOffset;
@@ -517,6 +526,15 @@ function switchPhoneModel(deviceType) {
                 return;
             }
             phoneModel = gltf.scene;
+
+            if (config.useScreenMesh) {
+                phoneModel.traverse((child) => {
+                    if (child.isMesh && ((child.name || '').toLowerCase().includes('screen') ||
+                        (child.material?.name || '').toLowerCase().includes('screen'))) {
+                        screenMesh = child;
+                    }
+                });
+            }
 
             // Center and scale the model
             const box = new THREE.Box3().setFromObject(phoneModel);
@@ -643,30 +661,41 @@ function loadCachedPhoneModel(deviceType) {
 
                 pivot.add(model);
 
-                // Create screen plane for this model
-                const aspectRatio = config.aspectRatio;
-                const planeHeight = config.planeSize?.height || (4.3 * config.screenHeightFactor);
-                const planeWidth = config.planeSize?.width || (planeHeight * aspectRatio);
+                // Prefer the authentic model's own screen mesh so its exact
+                // aspect ratio, rounded corners, and camera geometry remain
+                // intact in adjacent previews too.
+                let screenPlane = null;
+                if (config.useScreenMesh) {
+                    model.traverse((child) => {
+                        if (!screenPlane && child.isMesh && ((child.name || '').toLowerCase().includes('screen') ||
+                            (child.material?.name || '').toLowerCase().includes('screen'))) {
+                            screenPlane = child;
+                        }
+                    });
+                }
 
-                const geometry = new THREE.PlaneGeometry(planeWidth, planeHeight);
-                const material = new THREE.MeshBasicMaterial({
-                    color: 0x111111,
-                    side: THREE.DoubleSide,
-                    transparent: true,
-                    depthWrite: false
-                });
+                if (!screenPlane) {
+                    const aspectRatio = config.aspectRatio;
+                    const planeHeight = config.planeSize?.height || (4.3 * config.screenHeightFactor);
+                    const planeWidth = config.planeSize?.width || (planeHeight * aspectRatio);
+                    const geometry = new THREE.PlaneGeometry(planeWidth, planeHeight);
+                    const material = new THREE.MeshBasicMaterial({
+                        color: 0x111111,
+                        side: THREE.DoubleSide,
+                        transparent: true,
+                        depthWrite: false
+                    });
+                    screenPlane = new THREE.Mesh(geometry, material);
+                    screenPlane.position.set(screenOffset.x, screenOffset.y, screenOffset.z);
 
-                const screenPlane = new THREE.Mesh(geometry, material);
-                screenPlane.position.set(screenOffset.x, screenOffset.y, screenOffset.z);
-
-                const modelRot = config.modelRotation || { x: 0, y: 0, z: 0 };
-                screenPlane.rotation.set(
-                    -modelRot.x * Math.PI / 180,
-                    -modelRot.y * Math.PI / 180,
-                    -modelRot.z * Math.PI / 180
-                );
-
-                model.add(screenPlane);
+                    const modelRot = config.modelRotation || { x: 0, y: 0, z: 0 };
+                    screenPlane.rotation.set(
+                        -modelRot.x * Math.PI / 180,
+                        -modelRot.y * Math.PI / 180,
+                        -modelRot.z * Math.PI / 180
+                    );
+                    model.add(screenPlane);
+                }
 
                 phoneModelCache[deviceType] = {
                     model: model,
@@ -709,6 +738,20 @@ function createScreenOverlay() {
     }
 
     const config = deviceConfigs[currentDeviceModel] || deviceConfigs.iphone;
+
+    // Authentic tablet GLBs include a correctly shaped screen mesh. Reuse it
+    // so the downloaded model controls the bezel, corners, camera placement,
+    // and exact aspect ratio instead of stretching a separate rectangle over it.
+    if (config.useScreenMesh && screenMesh) {
+        customScreenPlane = screenMesh;
+        customScreenPlane.material = new THREE.MeshBasicMaterial({
+            color: 0x111111,
+            side: THREE.FrontSide,
+            transparent: true,
+            depthWrite: false
+        });
+        return;
+    }
 
     // Use device-specific aspect ratio and screen size
     const aspectRatio = config.aspectRatio;
@@ -808,7 +851,7 @@ function drawStatusBarUI(ctx, image, deviceType) {
     const w = image.width;
     const h = image.height;
     const fg = getStatusForegroundColor(image);
-    const isIphone = deviceType === 'iphone' || deviceType === 'ipad';
+    const isIphone = deviceType === 'iphone';
     const barTop = Math.round(h * (isIphone ? 0.010 : 0.009));
     const bezelPad = Math.round(w * (isIphone ? 0.14 : 0.05));
     const timeX = bezelPad;
