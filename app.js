@@ -2397,6 +2397,12 @@ function syncUIWithState() {
         btn.classList.toggle('active', btn.dataset.model === device3D);
     });
     updateFrameColorSwatches(device3D, ss.frameColor);
+    const familyBadge = document.getElementById('device-family-badge');
+    if (familyBadge) {
+        const isTablet = ['ipad', 'android-tablet'].includes(device3D) || state.outputDevice.includes('ipad') || state.outputDevice.includes('tablet');
+        familyBadge.textContent = isTablet ? 'Tablet screenshots' : 'Phone screenshots';
+        familyBadge.classList.toggle('tablet', isTablet);
+    }
     document.getElementById('rotation-3d-options').style.display = use3D ? 'block' : 'none';
     document.getElementById('rotation-3d-x').value = rotation3D.x;
     document.getElementById('rotation-3d-x-value').textContent = formatValue(rotation3D.x) + '°';
@@ -4778,6 +4784,12 @@ function setupEventListeners() {
 
             const device3D = btn.dataset.model;
             setScreenshotSetting('device3D', device3D);
+            const familyBadge = document.getElementById('device-family-badge');
+            if (familyBadge) {
+                const isTablet = ['ipad', 'android-tablet'].includes(device3D);
+                familyBadge.textContent = isTablet ? 'Tablet screenshots' : 'Phone screenshots';
+                familyBadge.classList.toggle('tablet', isTablet);
+            }
 
             // Reset frame color to first preset for new device
             const presets = typeof frameColorPresets !== 'undefined' ? frameColorPresets[device3D] : null;

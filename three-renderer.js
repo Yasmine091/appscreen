@@ -49,6 +49,26 @@ const deviceConfigs = {
         positionOffsetFactor: 0.5,
         cornerRadiusFactor: 0.04,
         modelRotation: { x: 0, y: 0, z: 0 }  // Adjust to correct model tilt (in degrees)
+    },
+    ipad: {
+        modelPath: 'models/ipad-pro-tablet.glb',
+        aspectRatio: 0.255 / 0.165,
+        screenHeightFactor: 1,
+        screenOffset: { x: 0, y: 0, z: 0.026 },
+        planeSize: { width: 0.255, height: 0.165 },
+        positionOffsetFactor: 0.5,
+        cornerRadiusFactor: 0.06,
+        modelRotation: { x: 0, y: 0, z: 0 }
+    },
+    'android-tablet': {
+        modelPath: 'models/android-tablet.glb',
+        aspectRatio: 0.19 / 0.265,
+        screenHeightFactor: 1,
+        screenOffset: { x: 0, y: 0, z: 0.021 },
+        planeSize: { width: 0.19, height: 0.265 },
+        positionOffsetFactor: 0.5,
+        cornerRadiusFactor: 0.045,
+        modelRotation: { x: 0, y: 0, z: 0 }
     }
 };
 
@@ -88,6 +108,14 @@ var frameColorPresets = {
           materials: { back_glass: '#7a9a7c', frame: '#a8b8aa', antenna: '#6a8a6c' } },
         { id: 'jetblack', label: 'Titanium Jetblack', swatch: '#404040',
           materials: { back_glass: '#2a2a2a', frame: '#484848', antenna: '#353535' } },
+    ],
+    ipad: [
+        { id: 'space-gray', label: 'Apple Space Gray', swatch: '#73777b', materials: { default: '#73777b', screen: '#111111' } },
+        { id: 'silver', label: 'Apple Silver', swatch: '#c7c9c8', materials: { default: '#c7c9c8', screen: '#111111' } }
+    ],
+    'android-tablet': [
+        { id: 'graphite', label: 'Samsung Graphite', swatch: '#4b4f54', materials: { default: '#4b4f54', screen: '#111111' } },
+        { id: 'silver', label: 'Samsung Silver', swatch: '#bfc3c7', materials: { default: '#bfc3c7', screen: '#111111' } }
     ]
 };
 
@@ -134,8 +162,9 @@ function setPhoneFrameColor(presetId, deviceType) {
     phoneModel.traverse((child) => {
         if (child.isMesh && child.material) {
             const matName = (child.material.name || '').toLowerCase();
-            if (preset.materials[matName]) {
-                child.material.color.set(preset.materials[matName]);
+            const color = preset.materials[matName] || preset.materials.default;
+            if (color && matName !== 'screen') {
+                child.material.color.set(color);
             }
         }
     });
@@ -157,8 +186,9 @@ function setCachedModelFrameColor(presetId, deviceType) {
     cached.model.traverse((child) => {
         if (child.isMesh && child.material) {
             const matName = (child.material.name || '').toLowerCase();
-            if (preset.materials[matName]) {
-                child.material.color.set(preset.materials[matName]);
+            const color = preset.materials[matName] || preset.materials.default;
+            if (color && matName !== 'screen') {
+                child.material.color.set(color);
             }
         }
     });
@@ -615,8 +645,8 @@ function loadCachedPhoneModel(deviceType) {
 
                 // Create screen plane for this model
                 const aspectRatio = config.aspectRatio;
-                const planeHeight = 4.3 * config.screenHeightFactor;
-                const planeWidth = planeHeight * aspectRatio;
+                const planeHeight = config.planeSize?.height || (4.3 * config.screenHeightFactor);
+                const planeWidth = config.planeSize?.width || (planeHeight * aspectRatio);
 
                 const geometry = new THREE.PlaneGeometry(planeWidth, planeHeight);
                 const material = new THREE.MeshBasicMaterial({
@@ -682,8 +712,8 @@ function createScreenOverlay() {
 
     // Use device-specific aspect ratio and screen size
     const aspectRatio = config.aspectRatio;
-    const planeHeight = 4.3 * config.screenHeightFactor;
-    const planeWidth = planeHeight * aspectRatio;
+    const planeHeight = config.planeSize?.height || (4.3 * config.screenHeightFactor);
+    const planeWidth = config.planeSize?.width || (planeHeight * aspectRatio);
 
     const geometry = new THREE.PlaneGeometry(planeWidth, planeHeight);
     const material = new THREE.MeshBasicMaterial({
@@ -778,7 +808,7 @@ function drawStatusBarUI(ctx, image, deviceType) {
     const w = image.width;
     const h = image.height;
     const fg = getStatusForegroundColor(image);
-    const isIphone = deviceType === 'iphone';
+    const isIphone = deviceType === 'iphone' || deviceType === 'ipad';
     const barTop = Math.round(h * (isIphone ? 0.010 : 0.009));
     const bezelPad = Math.round(w * (isIphone ? 0.14 : 0.05));
     const timeX = bezelPad;
@@ -923,7 +953,7 @@ function createRoundedScreenImage(image, cornerRadius, deviceType, screenshotSet
     ctx.clip();
     if (showStatusBar) {
         // Reserve a slim native-like top area and blend it from the first 2px strip.
-        const statusBarInset = deviceType === 'samsung'
+        const statusBarInset = deviceType === 'samsung' || deviceType === 'android-tablet'
             ? Math.round(h * 0.022)
             : Math.round(h * 0.024);
         // Fill inset by stretching only the top 2px rows (no enlarged top-crop effect).
