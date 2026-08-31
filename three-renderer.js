@@ -1166,6 +1166,21 @@ function setThreeJSScale(scale) {
     requestThreeJSRender();
 }
 
+function getThreeJSPosition(settings, width, height) {
+    const screenshotScale = settings.scale / 100;
+    const aspect = width / height;
+    const viewHeight = 2 * threeCamera.position.z * Math.tan(threeCamera.fov * Math.PI / 360);
+    const viewWidth = viewHeight * aspect;
+    // Match the 2D renderer's minimum movement range, but in camera units.
+    const moveX = Math.max(1 - screenshotScale, 0.15) * viewWidth;
+    const moveY = Math.max(1 - screenshotScale, 0.15) * viewHeight;
+    return {
+        x: (settings.x / 100 - 0.5) * moveX + basePositionOffset.x,
+        y: -((settings.y / 100 - 0.5) * moveY) + basePositionOffset.y,
+        z: basePositionOffset.z
+    };
+}
+
 // Render on demand instead of continuous animation loop
 let renderRequested = false;
 
@@ -1210,15 +1225,8 @@ function renderThreeJSToCanvas(targetCanvas, width, height) {
             // Position: match 2D behavior where available space depends on (1 - scale)
             // This ensures same percentages look the same in 2D and 3D
             // X uses smaller factor (1.1) since canvas is taller than wide (400x700 aspect)
-            const availableSpaceY = (1 - screenshotScale) * 2;
-            const availableSpaceX = (1 - screenshotScale) * 0.9;
-            const xOffset = ((ss.x - 50) / 50) * availableSpaceX;
-            const yOffset = -((ss.y - 50) / 50) * availableSpaceY; // Inverted for 3D
-            phonePivot.position.set(
-                xOffset + basePositionOffset.x,
-                yOffset + basePositionOffset.y,
-                basePositionOffset.z
-            );
+            const position = getThreeJSPosition(ss, dims.width, dims.height);
+            phonePivot.position.set(position.x, position.y, position.z);
 
             // Rotation: apply 3D rotation from current screenshot settings + model base rotation
             const rotation3D = ss.rotation3D || { x: 0, y: 0, z: 0 };
@@ -1365,15 +1373,8 @@ function renderThreeJSForScreenshot(targetCanvas, width, height, screenshotIndex
     // Apply scale and position (matching 2D behavior)
     const screenshotScale = ss.scale / 100;
     pivotToUse.scale.setScalar(screenshotScale);
-    const availableSpaceY = (1 - screenshotScale) * 2;
-    const availableSpaceX = (1 - screenshotScale) * 0.9;
-    const xOffset = ((ss.x - 50) / 50) * availableSpaceX;
-    const yOffset = -((ss.y - 50) / 50) * availableSpaceY;
-    pivotToUse.position.set(
-        xOffset + basePositionOffset.x,
-        yOffset + basePositionOffset.y,
-        basePositionOffset.z
-    );
+    const position = getThreeJSPosition(ss, dims.width, dims.height);
+    pivotToUse.position.set(position.x, position.y, position.z);
 
     // Set transparent background for compositing
     threeScene.background = null;
