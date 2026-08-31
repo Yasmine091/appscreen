@@ -119,10 +119,10 @@ var frameColorPresets = {
           materials: { back_glass: '#2a2a2a', frame: '#484848', antenna: '#353535' } },
     ],
     ipad: [
-        { id: 'space-gray', label: 'Apple Space Black', swatch: '#34383c', materials: { case: '#34383c', bezel: '#1d1d1f', glass: '#111111' } },
-        { id: 'silver', label: 'Apple Silver', swatch: '#c7c9c8', materials: { case: '#c7c9c8', bezel: '#262626', glass: '#111111' } },
-        { id: 'blue', label: 'Apple Blue', swatch: '#5f7182', materials: { case: '#5f7182', bezel: '#20262c', glass: '#111111' } },
-        { id: 'gold', label: 'Apple Gold', swatch: '#c6a77c', materials: { case: '#c6a77c', bezel: '#2a241d', glass: '#111111' } }
+        { id: 'space-gray', label: 'Apple Space Black', swatch: '#34383c', materials: { case: '#34383c', bezel: '#0b0c0e', glass: '#08090a' } },
+        { id: 'silver', label: 'Apple Silver', swatch: '#c7c9c8', materials: { case: '#c7c9c8', bezel: '#111214', glass: '#08090a' } },
+        { id: 'blue', label: 'Apple Blue', swatch: '#5f7182', materials: { case: '#5f7182', bezel: '#101419', glass: '#08090a' } },
+        { id: 'gold', label: 'Apple Gold', swatch: '#c6a77c', materials: { case: '#c6a77c', bezel: '#171311', glass: '#08090a' } }
     ],
     'android-tablet': [
         { id: 'graphite', label: 'Samsung Graphite', swatch: '#4b4f54', materials: { material: '#4b4f54', body: '#4b4f54', body2: '#34383d', body3: '#565b61', bezel: '#151515', antenna: '#2d2d2d', camframe: '#25282b', camframe2: '#111111' } },
