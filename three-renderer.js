@@ -63,7 +63,7 @@ const deviceConfigs = {
         modelRotation: { x: 0, y: 0, z: -90 },
         textureQuarterTurn: -1,
         cameraMeshNames: ['front_camera'],
-        positionCorrection: { x: -0.31, y: 0 }
+        positionCorrection: { x: -0.27, y: 0 }
     },
     'android-tablet': {
         modelPath: 'models/galaxy-tab-s8-ultra.glb',
@@ -79,7 +79,7 @@ const deviceConfigs = {
         textureQuarterTurn: -1,
         cameraMeshNames: ['camera'],
         hiddenMeshNames: ['penbody', 'pentip', 'pencharge'],
-        positionCorrection: { x: 0.14, y: 0 }
+        positionCorrection: { x: 0.29, y: 0 }
     }
 };
 
