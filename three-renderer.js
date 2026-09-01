@@ -63,7 +63,7 @@ const deviceConfigs = {
         modelRotation: { x: 0, y: 0, z: -90 },
         textureQuarterTurn: -1,
         cameraMeshNames: ['front_camera'],
-        positionCorrection: { x: -0.27, y: 0 }
+        positionCorrection: { x: 0, y: 0 }
     },
     'android-tablet': {
         modelPath: 'models/galaxy-tab-s8-ultra.glb',
@@ -79,7 +79,7 @@ const deviceConfigs = {
         textureQuarterTurn: -1,
         cameraMeshNames: ['camera'],
         hiddenMeshNames: ['penbody', 'pentip', 'pencharge'],
-        positionCorrection: { x: 0.29, y: 0 }
+        positionCorrection: { x: 0, y: 0 }
     }
 };
 
@@ -1205,6 +1205,27 @@ function getThreeJSPosition(settings, width, height, deviceType) {
     };
 }
 
+function correctTabletScreenPosition(pivot, nativeScreenMesh, desiredPosition, deviceType) {
+    if (!pivot || !nativeScreenMesh || !['ipad', 'android-tablet'].includes(deviceType)) return;
+    threeScene.updateMatrixWorld(true);
+    threeCamera.updateMatrixWorld(true);
+
+    const screenCenter = new THREE.Box3()
+        .setFromObject(nativeScreenMesh)
+        .getCenter(new THREE.Vector3());
+    const actualNdc = screenCenter.project(threeCamera);
+    const targetNdc = new THREE.Vector3(
+        desiredPosition.x,
+        desiredPosition.y,
+        desiredPosition.z
+    ).project(threeCamera);
+    const viewHeight = 2 * threeCamera.position.z * Math.tan(threeCamera.fov * Math.PI / 360);
+    const viewWidth = viewHeight * threeCamera.aspect;
+
+    pivot.position.x += (targetNdc.x - actualNdc.x) * viewWidth / 2;
+    pivot.position.y += (targetNdc.y - actualNdc.y) * viewHeight / 2;
+}
+
 // Render on demand instead of continuous animation loop
 let renderRequested = false;
 
@@ -1273,6 +1294,13 @@ function renderThreeJSToCanvas(targetCanvas, width, height) {
     threeRenderer.setSize(dims.width, dims.height);
     threeCamera.aspect = dims.width / dims.height;
     threeCamera.updateProjectionMatrix();
+    if (typeof state !== 'undefined') {
+        const ss = typeof getScreenshotSettings === 'function' ? getScreenshotSettings() : state.defaults?.screenshot;
+        if (ss && ['ipad', 'android-tablet'].includes(currentDeviceModel)) {
+            const position = getThreeJSPosition(ss, dims.width, dims.height, currentDeviceModel);
+            correctTabletScreenPosition(phonePivot, customScreenPlane, position, currentDeviceModel);
+        }
+    }
 
     // Clear the renderer before drawing (ensures clean transparency)
     threeRenderer.clear();
@@ -1409,6 +1437,9 @@ function renderThreeJSForScreenshot(targetCanvas, width, height, screenshotIndex
     threeRenderer.setSize(dims.width, dims.height);
     threeCamera.aspect = dims.width / dims.height;
     threeCamera.updateProjectionMatrix();
+    if (['ipad', 'android-tablet'].includes(screenshotDeviceType)) {
+        correctTabletScreenPosition(pivotToUse, screenPlaneToUse, position, screenshotDeviceType);
+    }
 
     // Clear the renderer before drawing (ensures clean transparency)
     threeRenderer.clear();
