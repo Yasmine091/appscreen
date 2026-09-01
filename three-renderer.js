@@ -119,10 +119,10 @@ var frameColorPresets = {
           materials: { back_glass: '#2a2a2a', frame: '#484848', antenna: '#353535' } },
     ],
     ipad: [
-        { id: 'space-gray', label: 'Apple Space Black', swatch: '#34383c', materials: { case: '#34383c', bezel: '#0b0c0e', glass: '#08090a' } },
-        { id: 'silver', label: 'Apple Silver', swatch: '#c7c9c8', materials: { case: '#c7c9c8', bezel: '#111214', glass: '#08090a' } },
-        { id: 'blue', label: 'Apple Blue', swatch: '#5f7182', materials: { case: '#5f7182', bezel: '#101419', glass: '#08090a' } },
-        { id: 'gold', label: 'Apple Gold', swatch: '#c6a77c', materials: { case: '#c6a77c', bezel: '#171311', glass: '#08090a' } }
+        { id: 'space-gray', label: 'Apple Space Black', swatch: '#34383c', materials: { case: '#34383c', bezel: '#050607', glass: '#030405' } },
+        { id: 'silver', label: 'Apple Silver', swatch: '#c7c9c8', materials: { case: '#c7c9c8', bezel: '#08090a', glass: '#030405' } },
+        { id: 'blue', label: 'Apple Blue', swatch: '#5f7182', materials: { case: '#5f7182', bezel: '#07090c', glass: '#030405' } },
+        { id: 'gold', label: 'Apple Gold', swatch: '#c6a77c', materials: { case: '#c6a77c', bezel: '#0b0908', glass: '#030405' } }
     ],
     'android-tablet': [
         { id: 'graphite', label: 'Samsung Graphite', swatch: '#4b4f54', materials: { material: '#4b4f54', body: '#4b4f54', body2: '#34383d', body3: '#565b61', bezel: '#151515', antenna: '#2d2d2d', camframe: '#25282b', camframe2: '#111111' } },
@@ -196,6 +196,18 @@ function findNativeScreenMesh(model) {
         }
     });
     return exactMatch || screenMatch;
+}
+
+function alignModelToScreenCenter(model, nativeScreenMesh) {
+    if (!model || !nativeScreenMesh) return;
+    const screenCenter = new THREE.Box3()
+        .setFromObject(nativeScreenMesh)
+        .getCenter(new THREE.Vector3());
+    // Keep the configured depth offset, but make x/y positions use the
+    // actual rendered screen center. This is what keeps tablet presets
+    // centered like the phone presets despite GLB camera/pen assemblies.
+    model.position.x -= screenCenter.x;
+    model.position.y -= screenCenter.y;
 }
 
 // Apply a frame color preset to the phone model
@@ -470,6 +482,9 @@ function loadPhoneModel() {
                 -screenOffset.y * baseModelScale,
                 -screenOffset.z * baseModelScale
             );
+            if (config.useScreenMesh) {
+                alignModelToScreenCenter(phoneModel, screenMesh);
+            }
 
             phonePivot.add(phoneModel);
             threeScene.add(phonePivot);
@@ -611,6 +626,9 @@ function switchPhoneModel(deviceType) {
                 -screenOffset.y * baseModelScale,
                 -screenOffset.z * baseModelScale
             );
+            if (config.useScreenMesh) {
+                alignModelToScreenCenter(phoneModel, screenMesh);
+            }
 
             phonePivot.add(phoneModel);
             threeScene.add(phonePivot);
@@ -717,6 +735,9 @@ function loadCachedPhoneModel(deviceType) {
                     -screenOffset.y * modelBaseScale,
                     -screenOffset.z * modelBaseScale
                 );
+                if (config.useScreenMesh) {
+                    alignModelToScreenCenter(model, nativeScreenPlane);
+                }
 
                 pivot.add(model);
 
