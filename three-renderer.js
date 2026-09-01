@@ -62,7 +62,8 @@ const deviceConfigs = {
         // complete device into the portrait orientation used by screenshots.
         modelRotation: { x: 0, y: 0, z: -90 },
         textureQuarterTurn: -1,
-        cameraMeshNames: ['front_camera']
+        cameraMeshNames: ['front_camera'],
+        positionCorrection: { x: -0.12, y: 0 }
     },
     'android-tablet': {
         modelPath: 'models/galaxy-tab-s8-ultra.glb',
@@ -77,7 +78,8 @@ const deviceConfigs = {
         modelRotation: { x: 0, y: 180, z: 90 },
         textureQuarterTurn: -1,
         cameraMeshNames: ['camera'],
-        hiddenMeshNames: ['penbody', 'pentip', 'pencharge']
+        hiddenMeshNames: ['penbody', 'pentip', 'pencharge'],
+        positionCorrection: { x: -0.12, y: 0 }
     }
 };
 
@@ -1187,7 +1189,7 @@ function setThreeJSScale(scale) {
     requestThreeJSRender();
 }
 
-function getThreeJSPosition(settings, width, height) {
+function getThreeJSPosition(settings, width, height, deviceType) {
     const screenshotScale = settings.scale / 100;
     const aspect = width / height;
     const viewHeight = 2 * threeCamera.position.z * Math.tan(threeCamera.fov * Math.PI / 360);
@@ -1195,9 +1197,10 @@ function getThreeJSPosition(settings, width, height) {
     // Match the 2D renderer's minimum movement range, but in camera units.
     const moveX = Math.max(1 - screenshotScale, 0.15) * viewWidth;
     const moveY = Math.max(1 - screenshotScale, 0.15) * viewHeight;
+    const correction = deviceConfigs[deviceType]?.positionCorrection || { x: 0, y: 0 };
     return {
-        x: (settings.x / 100 - 0.5) * moveX + basePositionOffset.x,
-        y: -((settings.y / 100 - 0.5) * moveY) + basePositionOffset.y,
+        x: (settings.x / 100 - 0.5) * moveX + correction.x + basePositionOffset.x,
+        y: -((settings.y / 100 - 0.5) * moveY) + correction.y + basePositionOffset.y,
         z: basePositionOffset.z
     };
 }
@@ -1246,7 +1249,7 @@ function renderThreeJSToCanvas(targetCanvas, width, height) {
             // Position: match 2D behavior where available space depends on (1 - scale)
             // This ensures same percentages look the same in 2D and 3D
             // X uses smaller factor (1.1) since canvas is taller than wide (400x700 aspect)
-            const position = getThreeJSPosition(ss, dims.width, dims.height);
+            const position = getThreeJSPosition(ss, dims.width, dims.height, currentDeviceModel);
             phonePivot.position.set(position.x, position.y, position.z);
 
             // Rotation: apply 3D rotation from current screenshot settings + model base rotation
@@ -1394,7 +1397,7 @@ function renderThreeJSForScreenshot(targetCanvas, width, height, screenshotIndex
     // Apply scale and position (matching 2D behavior)
     const screenshotScale = ss.scale / 100;
     pivotToUse.scale.setScalar(screenshotScale);
-    const position = getThreeJSPosition(ss, dims.width, dims.height);
+    const position = getThreeJSPosition(ss, dims.width, dims.height, screenshotDeviceType);
     pivotToUse.position.set(position.x, position.y, position.z);
 
     // Set transparent background for compositing
