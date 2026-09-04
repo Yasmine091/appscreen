@@ -173,9 +173,15 @@ function applyScreenChromeMaterials(model) {
     model.traverse((child) => {
         if (!child.isMesh || !child.material) return;
         const name = (child.material.name || '').toLowerCase();
-        if (name === 'gray' || name === 'bezel' || name === 'glass') child.material.color.set('#000000');
-        if (name === 'black' || name === 'camera2' || name === 'camera1') {
+        const isBlackChrome = name === 'gray' || name === 'bezel' || name === 'glass'
+            || name === 'black' || name === 'camera2' || name === 'camera1';
+        if (isBlackChrome) {
             child.material.color.set('#000000');
+            // Prevent scene lights from turning black Apple chrome gray.
+            if ('roughness' in child.material) child.material.roughness = 1;
+            if ('metalness' in child.material) child.material.metalness = 0;
+            if ('clearcoat' in child.material) child.material.clearcoat = 0;
+            if ('envMapIntensity' in child.material) child.material.envMapIntensity = 0;
         }
     });
 }
