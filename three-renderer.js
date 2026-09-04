@@ -1156,10 +1156,28 @@ function createRoundedScreenImage(image, cornerRadius, deviceType, screenshotSet
     } else {
         ctx.drawImage(image, 0, 0);
     }
+    if (showStatusBar && (deviceType === 'iphone' || deviceType === 'ipad')) {
+        clearAppleStatusBarArea(ctx, image, deviceType, w, h);
+    }
     applyCameraCutoutMask(ctx, image, deviceType, screenshotSettings);
     drawDeviceTopOverlays(ctx, image, deviceType, screenshotSettings);
 
     return canvas;
+}
+
+// Remove any source-platform chrome before adding the native Apple treatment.
+// This prevents Android status icons embedded in imported screenshots from
+// surviving underneath the iPhone/iPad overlay.
+function clearAppleStatusBarArea(ctx, image, deviceType, width, height) {
+    const inset = Math.round(height * (deviceType === 'iphone' ? 0.075 : 0.052));
+    const color = sampleTopColor(image, Math.max(2, Math.round(height * 0.004)));
+    const gradient = ctx.createLinearGradient(0, 0, 0, inset);
+    gradient.addColorStop(0, color);
+    gradient.addColorStop(1, color);
+    ctx.save();
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, width, inset);
+    ctx.restore();
 }
 
 // Tablet GLBs are authored in landscape while the app supplies portrait
