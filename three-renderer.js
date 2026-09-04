@@ -1173,7 +1173,7 @@ function createRoundedScreenImage(image, cornerRadius, deviceType, screenshotSet
     ctx.clip();
     if (showStatusBar) {
         // Reserve a slim native-like top area and blend it from the first 2px strip.
-        const statusBarInset = deviceType === 'samsung' || deviceType === 'android-tablet'
+        const statusBarInset = deviceType === 'samsung' || deviceType === 'android-tablet' || deviceType === 'ipad'
             ? Math.round(h * 0.022)
             : Math.round(h * 0.024);
         // Fill inset by stretching only the top 2px rows (no enlarged top-crop effect).
