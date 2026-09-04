@@ -922,6 +922,11 @@ function getStatusForegroundColor(image) {
 
 
 function drawStatusBarUI(ctx, image, deviceType) {
+    if (deviceType === 'iphone' || deviceType === 'ipad') {
+        drawAppleStatusBarUI(ctx, image, deviceType);
+        return;
+    }
+
     const w = image.width;
     const h = image.height;
     const fg = getStatusForegroundColor(image);
@@ -989,6 +994,77 @@ function drawStatusBarUI(ctx, image, deviceType) {
     ctx.stroke();
     ctx.fillRect(batteryX + 2, iconY + 2, Math.round((bodyW - 4) * 0.78), Math.max(1, batteryH - 4));
     ctx.fillRect(batteryX + batteryW - batteryTipW, iconY + Math.round(batteryH * 0.2), batteryTipW, Math.max(1, Math.round(batteryH * 0.6)));
+    ctx.restore();
+}
+
+function drawAppleStatusBarUI(ctx, image, deviceType) {
+    const w = image.width;
+    const h = image.height;
+    const fg = getStatusForegroundColor(image);
+    const isIphone = deviceType === 'iphone';
+    const pad = Math.round(w * (isIphone ? 0.075 : 0.045));
+    const top = Math.round(h * 0.009);
+    const fontSize = Math.max(7, Math.round(h * (isIphone ? 0.0165 : 0.014)));
+    const iconY = top + Math.round(fontSize * 0.2);
+
+    ctx.save();
+    ctx.fillStyle = fg;
+    ctx.strokeStyle = fg;
+    ctx.lineWidth = Math.max(1, Math.round(w * 0.0022));
+    ctx.globalAlpha = 0.95;
+    ctx.font = `600 ${fontSize}px -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif`;
+    ctx.textBaseline = 'top';
+    ctx.textAlign = 'left';
+    ctx.fillText('9:41', pad, top);
+
+    const right = w - pad;
+    const batteryW = Math.round(w * 0.052);
+    const batteryH = Math.max(7, Math.round(h * 0.0105));
+    const batteryX = right - batteryW;
+    const batteryY = iconY;
+    const radius = Math.max(2, Math.round(batteryH * 0.28));
+
+    // Cellular signal bars.
+    const signalX = batteryX - Math.round(w * 0.065);
+    const barW = Math.max(2, Math.round(w * 0.006));
+    const gap = Math.max(2, Math.round(w * 0.004));
+    for (let i = 0; i < 4; i++) {
+        const barH = Math.max(4, Math.round(batteryH * (0.45 + i * 0.18)));
+        ctx.fillRect(signalX + i * (barW + gap), iconY + batteryH - barH, barW, barH);
+    }
+
+    // 5G label, as used by the supplied iPhone reference.
+    ctx.font = `600 ${Math.max(6, Math.round(fontSize * 0.72))}px -apple-system, BlinkMacSystemFont, sans-serif`;
+    ctx.fillText('5G', signalX - Math.round(w * 0.042), top + Math.round(fontSize * 0.2));
+
+    // Wi-Fi glyph.
+    const wifiX = batteryX - Math.round(w * 0.103);
+    const wifiR = Math.max(4, Math.round(h * 0.006));
+    ctx.beginPath();
+    ctx.arc(wifiX, iconY + wifiR, wifiR, Math.PI * 1.15, Math.PI * 1.85);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(wifiX, iconY + wifiR, wifiR * 0.62, Math.PI * 1.18, Math.PI * 1.82);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(wifiX, iconY + wifiR, Math.max(1, wifiR * 0.2), 0, Math.PI * 2);
+    ctx.fill();
+
+    // Apple battery outline and percentage.
+    ctx.beginPath();
+    ctx.roundRect?.(batteryX, batteryY, batteryW, batteryH, radius);
+    if (!ctx.roundRect) {
+        ctx.rect(batteryX, batteryY, batteryW, batteryH);
+    }
+    ctx.stroke();
+    ctx.fillRect(batteryX + 2, batteryY + 2, Math.round((batteryW - 4) * 0.95), Math.max(1, batteryH - 4));
+    ctx.fillRect(batteryX + batteryW + 1, batteryY + Math.round(batteryH * 0.3), Math.max(2, Math.round(w * 0.003)), Math.max(2, Math.round(batteryH * 0.4)));
+
+    if (isIphone) {
+        ctx.font = `600 ${Math.max(6, Math.round(fontSize * 0.7))}px -apple-system, BlinkMacSystemFont, sans-serif`;
+        ctx.textAlign = 'right';
+        ctx.fillText('95', batteryX - Math.round(w * 0.012), top + Math.round(fontSize * 0.23));
+    }
     ctx.restore();
 }
 
