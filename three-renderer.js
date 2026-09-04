@@ -88,21 +88,21 @@ const deviceConfigs = {
 var frameColorPresets = {
     iphone: [
         { id: 'natural', label: 'Natural Titanium', swatch: '#9d927f',
-          materials: { backpanel: '#9d927f', metalframe: '#5f5950', gray: '#221f1b' } },
+          materials: { backpanel: '#b3a48f', metalframe: '#8a8174', gray: '#000000' } },
         { id: 'blue', label: 'Blue Titanium', swatch: '#3d4d5c',
-          materials: { backpanel: '#394d5f', metalframe: '#3a4553', gray: '#1a1f24' } },
+          materials: { backpanel: '#49647b', metalframe: '#587086', gray: '#000000' } },
         { id: 'white', label: 'White Titanium', swatch: '#e3ddd4',
-          materials: { backpanel: '#e3ddd4', metalframe: '#c4bdb4', gray: '#2a2825' } },
+          materials: { backpanel: '#eee9e1', metalframe: '#ded7ce', gray: '#000000' } },
         { id: 'black', label: 'Black Titanium', swatch: '#3a3632',
-          materials: { backpanel: '#3a3632', metalframe: '#2a2725', gray: '#1a1918' } },
+          materials: { backpanel: '#4b4641', metalframe: '#4a4540', gray: '#000000' } },
         { id: 'desert', label: 'Desert Titanium', swatch: '#c4a882',
-          materials: { backpanel: '#c4a882', metalframe: '#8a7560', gray: '#2a2218' } },
+          materials: { backpanel: '#d7bc98', metalframe: '#b29a7e', gray: '#000000' } },
         { id: 'deep-purple', label: 'Deep Purple', swatch: '#5b4a6e',
-          materials: { backpanel: '#5b4a6e', metalframe: '#3d3348', gray: '#1e1825' } },
+          materials: { backpanel: '#705d86', metalframe: '#635274', gray: '#000000' } },
         { id: 'gold', label: 'Gold', swatch: '#e3c8a0',
-          materials: { backpanel: '#e3c8a0', metalframe: '#c9a96e', gray: '#2a2418' } },
+          materials: { backpanel: '#efd3a7', metalframe: '#dfbd82', gray: '#000000' } },
         { id: 'red', label: 'Product Red', swatch: '#c1272d',
-          materials: { backpanel: '#c1272d', metalframe: '#8a1c20', gray: '#1a0a0a' } },
+          materials: { backpanel: '#d5353c', metalframe: '#b52d33', gray: '#000000' } },
     ],
     samsung: [
         { id: 'gray', label: 'Titanium Gray', swatch: '#8a8a8a',
@@ -121,10 +121,10 @@ var frameColorPresets = {
           materials: { back_glass: '#2a2a2a', frame: '#484848', antenna: '#353535' } },
     ],
     ipad: [
-        { id: 'space-gray', label: 'Apple Space Black', swatch: '#34383c', materials: { case: '#34383c', bezel: '#050607', glass: '#030405' } },
-        { id: 'silver', label: 'Apple Silver', swatch: '#c7c9c8', materials: { case: '#c7c9c8', bezel: '#08090a', glass: '#030405' } },
-        { id: 'blue', label: 'Apple Blue', swatch: '#5f7182', materials: { case: '#5f7182', bezel: '#07090c', glass: '#030405' } },
-        { id: 'gold', label: 'Apple Gold', swatch: '#c6a77c', materials: { case: '#c6a77c', bezel: '#0b0908', glass: '#030405' } }
+        { id: 'space-gray', label: 'Apple Space Black', swatch: '#34383c', materials: { case: '#596066', bezel: '#000000', glass: '#000000' } },
+        { id: 'silver', label: 'Apple Silver', swatch: '#c7c9c8', materials: { case: '#e0e2e1', bezel: '#000000', glass: '#000000' } },
+        { id: 'blue', label: 'Apple Blue', swatch: '#5f7182', materials: { case: '#7790a4', bezel: '#000000', glass: '#000000' } },
+        { id: 'gold', label: 'Apple Gold', swatch: '#c6a77c', materials: { case: '#ddbd91', bezel: '#000000', glass: '#000000' } }
     ],
     'android-tablet': [
         { id: 'graphite', label: 'Samsung Graphite', swatch: '#4b4f54', materials: { material: '#4b4f54', body: '#4b4f54', body2: '#34383d', body3: '#565b61', bezel: '#151515', antenna: '#2d2d2d', camframe: '#25282b', camframe2: '#111111' } },
@@ -173,8 +173,7 @@ function applyScreenChromeMaterials(model) {
     model.traverse((child) => {
         if (!child.isMesh || !child.material) return;
         const name = (child.material.name || '').toLowerCase();
-        if (name === 'gray' || name === 'bezel') child.material.color.set('#08090b');
-        if (name === 'glass') child.material.color.set('#020304');
+        if (name === 'gray' || name === 'bezel' || name === 'glass') child.material.color.set('#000000');
         if (name === 'black' || name === 'camera2' || name === 'camera1') {
             child.material.color.set('#000000');
         }
