@@ -57,7 +57,7 @@ const deviceConfigs = {
         screenOffset: { x: 0, y: 0, z: 0.026 },
         useScreenMesh: true,
         positionOffsetFactor: 0.5,
-        cornerRadiusFactor: 0.06,
+        cornerRadiusFactor: 0.028,
         // The downloaded iPad asset is authored in landscape; rotate the
         // complete device into the portrait orientation used by screenshots.
         modelRotation: { x: 0, y: 0, z: -90 },
@@ -72,7 +72,7 @@ const deviceConfigs = {
         screenOffset: { x: 0, y: 0, z: 0.021 },
         useScreenMesh: true,
         positionOffsetFactor: 0.5,
-        cornerRadiusFactor: 0.045,
+        cornerRadiusFactor: 0.024,
         // The downloaded Galaxy Tab asset is landscape and was facing away
         // from the camera. Rotate it to portrait and turn it front-facing.
         modelRotation: { x: 0, y: 180, z: 90 },
@@ -161,6 +161,24 @@ function tuneFrontCameraMaterials(model) {
             child.renderOrder = 26;
         }
     });
+
+    applyScreenChromeMaterials(model);
+}
+
+// Keep display chrome distinct from the colored outer frame. The bezel/glass
+// and floating camera island are near-black on both Apple tablet and phone
+// hardware; the case and metal frame must retain their selected brightness.
+function applyScreenChromeMaterials(model) {
+    if (!model) return;
+    model.traverse((child) => {
+        if (!child.isMesh || !child.material) return;
+        const name = (child.material.name || '').toLowerCase();
+        if (name === 'gray' || name === 'bezel') child.material.color.set('#08090b');
+        if (name === 'glass') child.material.color.set('#020304');
+        if (name === 'black' || name === 'camera2' || name === 'camera1') {
+            child.material.color.set('#000000');
+        }
+    });
 }
 
 function syncDeviceChromeVisibility(model, deviceType, screenshotSettings) {
@@ -233,6 +251,8 @@ function setPhoneFrameColor(presetId, deviceType) {
         }
     });
 
+    applyScreenChromeMaterials(phoneModel);
+
     requestThreeJSRender();
 }
 
@@ -256,6 +276,8 @@ function setCachedModelFrameColor(presetId, deviceType) {
             }
         }
     });
+
+    applyScreenChromeMaterials(cached.model);
 }
 
 // Initialize Three.js scene
